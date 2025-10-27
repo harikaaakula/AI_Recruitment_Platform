@@ -114,14 +114,21 @@ router.get('/job/:jobId', authenticateToken, requireRole('recruiter'), (req, res
   });
 });
 
-// Get all applications for recruiter
+// Get all applications for recruiter - ERD compliant
 router.get('/recruiter/all', authenticateToken, requireRole('recruiter'), (req, res) => {
   db.all(`
-    SELECT a.*, j.title as job_title 
-    FROM applications a 
-    JOIN jobs j ON a.job_id = j.id 
-    WHERE j.recruiter_id = ?
-    ORDER BY a.created_at DESC
+    SELECT ra.analysis_id as id, c.candidate_id, c.name as candidate_name, c.email as candidate_email, 
+           c.phone as candidate_phone, jr.role_name as job_title, ra.ai_match_score as ai_score,
+           ra.application_date as created_at, ra.experience_level, ra.experience_years,
+           at.objective_test_score as test_score, rd.hiring_status as status,
+           rd.composite_fit_score
+    FROM resume_analysis_table ra
+    JOIN candidate_table c ON ra.candidate_id = c.candidate_id
+    JOIN job_role_table jr ON ra.role_id = jr.role_id
+    LEFT JOIN assessment_table at ON ra.analysis_id = at.analysis_id
+    LEFT JOIN recruiter_decision_table rd ON ra.analysis_id = rd.analysis_id
+    WHERE jr.recruiter_id = ?
+    ORDER BY ra.application_date DESC
   `, [req.user.id], (err, applications) => {
     if (err) {
       return res.status(500).json({ error: 'Database error' });
@@ -130,15 +137,23 @@ router.get('/recruiter/all', authenticateToken, requireRole('recruiter'), (req, 
   });
 });
 
-// Get application by ID
+// Get application by ID - ERD compliant
 router.get('/:id', (req, res) => {
   const { id } = req.params;
   
   db.get(`
-    SELECT a.*, j.title as job_title, j.description as job_description
-    FROM applications a 
-    JOIN jobs j ON a.job_id = j.id 
-    WHERE a.id = ?
+    SELECT ra.analysis_id as id, c.candidate_id, c.name as candidate_name, c.email as candidate_email, 
+           c.phone as candidate_phone, jr.role_name as job_title, jr.role_description as job_description,
+           ra.ai_match_score as ai_score, ra.application_date as created_at, ra.experience_level, 
+           ra.experience_years, ra.matched_skills, ra.skill_gaps, ra.education, ra.certifications,
+           at.objective_test_score as test_score, at.test_completed_at, at.answers,
+           rd.hiring_status as status, rd.composite_fit_score, rd.decision_comments
+    FROM resume_analysis_table ra
+    JOIN candidate_table c ON ra.candidate_id = c.candidate_id
+    JOIN job_role_table jr ON ra.role_id = jr.role_id
+    LEFT JOIN assessment_table at ON ra.analysis_id = at.analysis_id
+    LEFT JOIN recruiter_decision_table rd ON ra.analysis_id = rd.analysis_id
+    WHERE ra.analysis_id = ?
   `, [id], (err, application) => {
     if (err) {
       return res.status(500).json({ error: 'Database error' });
