@@ -10,13 +10,18 @@ router.get('/hiring-recommendation/:applicationId', authenticateToken, requireRo
   const { applicationId } = req.params;
   
   try {
-    // Get application and job details
+    // Get application and job details from ERD-compliant structure
     const application = await new Promise((resolve, reject) => {
       db.get(`
-        SELECT a.*, j.title, j.description, j.requirements, j.threshold_score
-        FROM applications a
-        JOIN jobs j ON a.job_id = j.id
-        WHERE a.id = ?
+        SELECT c.*, jr.role_name as title, jr.role_description as description, 
+               ra.ai_match_score, ra.matched_skills, ra.experience_years, ra.experience_level,
+               ra.education, ra.skill_gaps,
+               rd.hiring_status, rd.decision_comments
+        FROM candidate_table c
+        LEFT JOIN resume_analysis_table ra ON c.candidate_id = ra.candidate_id
+        LEFT JOIN job_role_table jr ON ra.role_id = jr.role_id
+        LEFT JOIN recruiter_decision_table rd ON ra.analysis_id = rd.analysis_id
+        WHERE c.candidate_id = ?
       `, [applicationId], (err, row) => {
         if (err) reject(err);
         else resolve(row);
@@ -37,19 +42,19 @@ router.get('/hiring-recommendation/:applicationId', authenticateToken, requireRo
 
     const candidateData = {
       name: application.candidate_name,
-      ai_score: application.ai_score,
-      test_score: application.test_score,
-      skills_matched: aiInsights.skills_matched || [],
-      skill_gaps: aiInsights.skill_gaps || [],
-      experience_years: aiInsights.experience_years || 0,
-      education: aiInsights.education || {},
+      ai_score: application.ai_match_score,
+      test_score: 0, // Test scores handled separately in ERD
+      skills_matched: application.matched_skills ? JSON.parse(application.matched_skills) : [],
+      skill_gaps: application.skill_gaps ? JSON.parse(application.skill_gaps) : [],
+      experience_years: application.experience_years || 0,
+      education: application.education || 'Not specified',
       job_title: application.title
     };
 
     const jobData = {
       title: application.title,
-      requirements: application.requirements,
-      threshold_score: application.threshold_score
+      requirements: application.description || 'No requirements specified',
+      threshold_score: 70 // Default threshold
     };
 
     const recommendation = await AIRecommendationService.generateHiringRecommendation(candidateData, jobData);
@@ -73,10 +78,12 @@ router.get('/interview-questions/:applicationId', authenticateToken, requireRole
   try {
     const application = await new Promise((resolve, reject) => {
       db.get(`
-        SELECT a.*, j.title, j.requirements
-        FROM applications a
-        JOIN jobs j ON a.job_id = j.id
-        WHERE a.id = ?
+        SELECT c.*, jr.role_name as title,
+               ra.matched_skills
+        FROM candidate_table c
+        LEFT JOIN resume_analysis_table ra ON c.candidate_id = ra.candidate_id
+        LEFT JOIN job_role_table jr ON ra.role_id = jr.role_id
+        WHERE c.candidate_id = ?
       `, [applicationId], (err, row) => {
         if (err) reject(err);
         else resolve(row);
@@ -124,13 +131,14 @@ router.get('/similar-candidates/:applicationId', authenticateToken, requireRole(
   const { applicationId } = req.params;
   
   try {
-    // Get target candidate
+    // Get target candidate from ERD structure
     const targetCandidate = await new Promise((resolve, reject) => {
       db.get(`
-        SELECT a.*, j.title
-        FROM applications a
-        JOIN jobs j ON a.job_id = j.id
-        WHERE a.id = ?
+        SELECT c.*, jr.role_name as title, ra.matched_skills, ra.ai_match_score
+        FROM candidate_table c
+        LEFT JOIN resume_analysis_table ra ON c.candidate_id = ra.candidate_id
+        LEFT JOIN job_role_table jr ON ra.role_id = jr.role_id
+        WHERE c.candidate_id = ?
       `, [applicationId], (err, row) => {
         if (err) reject(err);
         else resolve(row);
@@ -141,13 +149,14 @@ router.get('/similar-candidates/:applicationId', authenticateToken, requireRole(
       return res.status(404).json({ error: 'Application not found' });
     }
 
-    // Get all other candidates
+    // Get all other candidates from ERD structure
     const allCandidates = await new Promise((resolve, reject) => {
       db.all(`
-        SELECT a.*, j.title
-        FROM applications a
-        JOIN jobs j ON a.job_id = j.id
-        WHERE a.id != ?
+        SELECT c.*, jr.role_name as title, ra.matched_skills, ra.ai_match_score
+        FROM candidate_table c
+        LEFT JOIN resume_analysis_table ra ON c.candidate_id = ra.candidate_id
+        LEFT JOIN job_role_table jr ON ra.role_id = jr.role_id
+        WHERE c.candidate_id != ?
       `, [applicationId], (err, rows) => {
         if (err) reject(err);
         else resolve(rows);
