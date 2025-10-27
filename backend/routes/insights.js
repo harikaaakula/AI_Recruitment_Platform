@@ -3,10 +3,10 @@ const db = require('../database/init');
 
 const router = express.Router();
 
-// Get market insights
+// Get market insights - ERD compliant
 router.get('/market', (req, res) => {
-  // Get job statistics
-  db.all('SELECT * FROM jobs', (err, jobs) => {
+  // Get job statistics from ERD structure
+  db.all('SELECT role_id as id, role_name as title, role_description as requirements, min_ai_score_threshold as threshold_score FROM job_role_table', (err, jobs) => {
     if (err) {
       return res.status(500).json({ error: 'Database error' });
     }
@@ -115,41 +115,57 @@ router.get('/market', (req, res) => {
   });
 });
 
-// Get recruiter analytics
+// Get recruiter analytics - ERD compliant
 router.get('/recruiter/:recruiterId', (req, res) => {
   const { recruiterId } = req.params;
   
-  // Get recruiter's jobs and applications
+  // Get recruiter's jobs and applications from ERD structure
   db.all(`
-    SELECT j.*, 
-           COUNT(a.id) as application_count,
-           AVG(a.ai_score) as avg_ai_score,
-           AVG(a.test_score) as avg_test_score,
-           COUNT(CASE WHEN a.status IN ('eligible', 'test_completed') THEN 1 END) as eligible_count
-    FROM jobs j 
-    LEFT JOIN applications a ON j.id = a.job_id 
-    WHERE j.recruiter_id = ? 
-    GROUP BY j.id
+    SELECT jr.role_id as id, jr.role_name as title, jr.min_ai_score_threshold as threshold_score,
+           COUNT(ra.analysis_id) as application_count,
+           AVG(ra.ai_match_score) as avg_ai_score,
+           AVG(at.objective_test_score) as avg_test_score,
+           COUNT(CASE WHEN ra.ai_match_score >= jr.min_ai_score_threshold THEN 1 END) as eligible_count,
+           COUNT(CASE WHEN at.test_completed_at IS NOT NULL THEN 1 END) as completed_tests
+    FROM job_role_table jr 
+    LEFT JOIN resume_analysis_table ra ON jr.role_id = ra.role_id 
+    LEFT JOIN assessment_table at ON ra.analysis_id = at.analysis_id
+    WHERE jr.recruiter_id = ? 
+    GROUP BY jr.role_id
   `, [recruiterId], (err, jobStats) => {
     if (err) {
       return res.status(500).json({ error: 'Database error' });
     }
 
-    // Get all applications for this recruiter
+    // Get all applications for this recruiter from ERD structure
     db.all(`
-      SELECT a.*, j.title as job_title 
-      FROM applications a 
-      JOIN jobs j ON a.job_id = j.id 
-      WHERE j.recruiter_id = ?
+      SELECT ra.analysis_id as id, ra.ai_match_score as ai_score, ra.application_date as created_at,
+             at.objective_test_score as test_score, at.test_completed_at,
+             jr.role_name as job_title, jr.min_ai_score_threshold as threshold_score,
+             rd.hiring_status as status,
+             CASE 
+               WHEN ra.ai_match_score >= jr.min_ai_score_threshold THEN 'eligible'
+               ELSE 'not_eligible'
+             END as eligibility_status,
+             CASE 
+               WHEN at.test_completed_at IS NOT NULL THEN 'test_completed'
+               WHEN at.test_link_token IS NOT NULL THEN 'test_assigned'
+               ELSE 'no_test'
+             END as test_status
+      FROM resume_analysis_table ra
+      JOIN job_role_table jr ON ra.role_id = jr.role_id
+      LEFT JOIN assessment_table at ON ra.analysis_id = at.analysis_id
+      LEFT JOIN recruiter_decision_table rd ON ra.analysis_id = rd.analysis_id
+      WHERE jr.recruiter_id = ?
     `, [recruiterId], (err, applications) => {
       if (err) {
         return res.status(500).json({ error: 'Database error' });
       }
 
-      // Calculate analytics
+      // Calculate analytics from ERD data
       const totalApplications = applications.length;
-      const eligibleApplications = applications.filter(app => app.status === 'eligible' || app.status === 'test_completed').length;
-      const completedTests = applications.filter(app => app.status === 'test_completed').length;
+      const eligibleApplications = applications.filter(app => app.eligibility_status === 'eligible').length;
+      const completedTests = applications.filter(app => app.test_status === 'test_completed').length;
       const averageAIScore = totalApplications > 0 ? Math.round(applications.reduce((sum, app) => sum + (app.ai_score || 0), 0) / totalApplications) : 0;
 
       // Application trends (mock data)

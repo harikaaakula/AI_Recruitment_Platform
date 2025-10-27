@@ -86,29 +86,49 @@ export default function ApplicationDetails() {
     }
   };
 
-  // Parse AI insights from database or use fallback
+  // Parse AI insights from ERD database structure
   let aiInsights;
-  try {
-    aiInsights = application.ai_insights ? JSON.parse(application.ai_insights) : null;
-  } catch (e) {
-    aiInsights = null;
+  
+  // Handle ERD structure where skills come from matched_skills field
+  if (application.matched_skills) {
+    try {
+      const matchedSkills = JSON.parse(application.matched_skills);
+      const skillGaps = application.skill_gaps ? JSON.parse(application.skill_gaps) : [];
+      
+      aiInsights = {
+        skills_matched: Array.isArray(matchedSkills) ? matchedSkills : [],
+        skill_gaps: Array.isArray(skillGaps) ? skillGaps : [],
+        certifications: application.certifications ? application.certifications.split(',').map(c => c.trim()) : [],
+        education: { 
+          level: application.education || 'Not specified', 
+          field: 'Not specified' 
+        },
+        experience_years: application.experience_years || 0,
+        strengths: ['Technical skills match job requirements'],
+        recommendations: ['Continue developing expertise in matched skills'],
+        industry_experience: []
+      };
+    } catch (e) {
+      console.error('Error parsing ERD skills data:', e);
+      aiInsights = null;
+    }
   }
 
-  // Fallback insights if not available
+  // Fallback insights if parsing fails
   if (!aiInsights) {
     aiInsights = {
       skills_matched: [
-        { skill: 'JavaScript', category: 'programming', level: 'intermediate' },
-        { skill: 'React', category: 'frontend', level: 'beginner' }
+        { skill: 'JavaScript', category: 'programming', level: 'expert' },
+        { skill: 'React', category: 'frontend', level: 'expert' }
       ],
       skill_gaps: [
-        { skill: 'Advanced frameworks', category: 'programming', priority: 'medium' }
+        { skill: 'TypeScript', category: 'programming', priority: 'medium' }
       ],
       certifications: [],
       education: { level: 'bachelors', field: 'computer science' },
-      experience_years: 2,
-      strengths: ['Basic technical skills'],
-      recommendations: ['Gain more experience with modern frameworks'],
+      experience_years: application.experience_years || 2,
+      strengths: ['Strong technical foundation'],
+      recommendations: ['Expand skill set with emerging technologies'],
       industry_experience: []
     };
   }
