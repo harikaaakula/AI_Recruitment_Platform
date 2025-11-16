@@ -99,31 +99,31 @@ Recruiter View Flow:
 
 #### 1. Total Jobs 💼
 - **What it shows**: Number of active job postings
-- **Calculation**: `COUNT(*) FROM job_roles WHERE status = 'active'`
-- **Data source**: `job_roles` table
+- **Calculation**: `COUNT(*) FROM job_role_table WHERE status = 'active'`
+- **Data source**: `job_role_table` table
 
 #### 2. Total Candidates 👥
 - **What it shows**: Total applications across all jobs
-- **Calculation**: `COUNT(*) FROM applications`
-- **Data source**: `applications` table
+- **Calculation**: `COUNT(*) FROM application_table`
+- **Data source**: `application_table` table
 
 #### 3. Eligible Candidates ✅
 - **What it shows**: Candidates who passed both AI screening AND skill test
 - **Calculation**: `COUNT(*) WHERE status = 'test_completed' AND test_score >= 70`
 - **Tooltip**: "Candidates whose AI score met the job threshold AND who passed the job-specific assessment (test score ≥ 70%)"
-- **Data source**: `applications` + `tests` tables
+- **Data source**: `application_table` + `assessment_test_table` tables
 
 #### 4. Average AI Score 🤖
 - **What it shows**: Mean AI resume screening score across all candidates
-- **Calculation**: `AVG(ai_score) FROM ai_analysis`
+- **Calculation**: `AVG(ai_score) FROM resume_ai_analysis_table`
 - **Tooltip**: "Average AI resume screening score across all candidates. Evaluates skills match, experience, and qualifications"
-- **Data source**: `ai_analysis` table
+- **Data source**: `resume_ai_analysis_table` table
 
 #### 5. Average Test Score 📝
 - **What it shows**: Mean test score for candidates who completed assessments
-- **Calculation**: `AVG(test_score) FROM tests WHERE test_score IS NOT NULL`
+- **Calculation**: `AVG(test_score) FROM assessment_test_table WHERE test_score IS NOT NULL`
 - **Tooltip**: "Average score for candidates who completed job-specific technical assessments. Passing threshold is 70%"
-- **Data source**: `tests` table
+- **Data source**: `assessment_test_table` table
 
 ### Analytics Visualizations
 
@@ -134,7 +134,7 @@ Recruiter View Flow:
   - Test Failed (<70%) - Yellow  
   - Not Eligible (Low AI Score) - Red
 - **Calculation**: Percentage of total applications in each category
-- **Data source**: `applications` + `tests` tables
+- **Data source**: `application_table` + `assessment_test_table` tables
 
 #### AI Score Distribution
 - **Visual**: Color-coded list with counts
@@ -145,7 +145,7 @@ Recruiter View Flow:
   - 60-69% (Below Average) - Orange
   - Below 60% (Poor) - Red
 - **Calculation**: `COUNT(*) GROUP BY score_range`
-- **Data source**: `ai_analysis` table
+- **Data source**: `resume_ai_analysis_table` table
 
 ### Job Performance Analytics Table
 
@@ -161,7 +161,7 @@ Recruiter View Flow:
 - Eligible Rate: `(eligible_count / total_applications) * 100`
 - Color coding: Green (≥50%), Yellow (≥25%), Red (<25%)
 
-**Data source**: Aggregated from `applications`, `ai_analysis`, `tests` tables
+**Data source**: Aggregated from `application_table`, `resume_ai_analysis_table`, `assessment_test_table` tables
 
 ### Candidate Skill Insights
 
@@ -172,7 +172,7 @@ Recruiter View Flow:
   - Count occurrences of each skill
   - Sort by frequency, take top 5
 - **Visual**: Progress bars showing demand percentage
-- **Data source**: `ai_analysis.skills_matched` (JSON field)
+- **Data source**: `resume_ai_analysis_table.skills_matched` (JSON field)
 
 #### Common Skill Gaps
 - **What it shows**: Top 4 skills most candidates are missing
@@ -184,7 +184,7 @@ Recruiter View Flow:
     - **Medium Priority** (Yellow): 15-30% missing
     - **Low Priority** (Green): <15% missing
 - **Tooltip**: Explains priority calculation on hover (ℹ️ icon)
-- **Data source**: `ai_analysis.skill_gaps` (JSON field)
+- **Data source**: `resume_ai_analysis_table.skill_gaps` (JSON field)
 
 ### Recent Applications Table
 
@@ -197,7 +197,7 @@ Recruiter View Flow:
 - Applied date
 - "View Analysis" button
 
-**Data source**: `applications` JOIN `candidates`, `job_roles`, `ai_analysis`, `tests`
+**Data source**: `application_table` JOIN `candidate_table`, `job_role_table`, `resume_ai_analysis_table`, `assessment_test_table`
 
 ### Top Candidates This Week 🌟
 
@@ -219,7 +219,7 @@ Recruiter View Flow:
 - Experience level with weightage breakdown
 - "View Profile →" link
 
-**Data source**: Calculated from `ai_analysis` + `tests`, sorted by weighted score
+**Data source**: Calculated from `resume_ai_analysis_table` + `assessment_test_table`, sorted by weighted score
 
 ---
 
@@ -278,7 +278,7 @@ Clicking "Details" shows skill verification grid:
 - ❌ **Unverified Skills** (red): Claimed but not demonstrated
 - ⚠️ **Untested Skills** (yellow): Not covered by test questions
 
-**Data source**: `applications` filtered by `role_id`, joined with all related tables
+**Data source**: `application_table` filtered by `role_id`, joined with all related tables
 
 ---
 
@@ -346,7 +346,7 @@ Three-column grid showing:
 - ✗ Unverified Skills (red badges)
 - ? Untested Skills (gray badges)
 
-**Data source**: Single application with all joins: `applications` + `candidates` + `job_roles` + `ai_analysis` + `tests`
+**Data source**: Single application with all joins: `application_table` + `candidate_table` + `job_role_table` + `resume_ai_analysis_table` + `assessment_test_table`
 
 ---
 
@@ -411,9 +411,9 @@ Result: ["CompTIA Security+", "CEH"] // No duplicates
 
 #### 6. Application Creation
 - **Database Insert**: Creates records in:
-  - `candidates` table (if new)
-  - `applications` table with status
-  - `ai_analysis` table with scores and extracted data
+  - `candidate_table` table (if new)
+  - `application_table` table with status
+  - `resume_ai_analysis_table` table with scores and extracted data
 - **Status Determination**:
   - `eligible`: AI score ≥ job threshold (typically 60-70%)
   - `not_eligible`: AI score < threshold
@@ -434,7 +434,7 @@ Result: ["CompTIA Security+", "CEH"] // No duplicates
   - **Verified**: ≥70% correct
   - **Unverified**: <70% correct
   - **Untested**: No questions available
-- **Storage**: Results saved in `tests` table as JSON
+- **Storage**: Results saved in `assessment_test_table` table as JSON
 
 #### 9. Final Status Update
 - **Status**: Changed to `test_completed`
@@ -834,13 +834,16 @@ SKILLS
 
 ### Database Schema
 
-**Tables:**
-1. `candidates` - Candidate information
-2. `applications` - Application records
-3. `job_roles` - Job definitions
-4. `ai_analysis` - AI scoring results
-5. `tests` - Test results and skill verification
-6. `decisions` - Final hiring decisions
+**Active Tables (As shown in ERD - Major tables only):**
+
+1. **`candidate_table`** (1,088 records) - Candidate information (name, email, phone, resume_path)
+2. **`application_table`** (1,088 records) - Application records (candidate_id, role_id, status, dates)
+3. **`job_role_table`** (20 records) - Job definitions (title, description, requirements, thresholds)
+4. **`resume_ai_analysis_table`** (1,088 records) - AI scoring results (ai_score, skills_matched, skill_gaps, education, certifications)
+5. **`assessment_test_table`** (876 records) - Test results and skill verification (test_score, verified_skills, unverified_skills)
+6. **`recruiter_decision_table`** (873 records) - Composite scores and final decisions (composite_score, weights, final_decision)
+
+**Note**: The ERD diagram shows only the major tables above. The `user_table` is not included in the ERD as it's used only for authentication/login purposes.
 
 ---
 
