@@ -2,6 +2,30 @@
 
 An intelligent recruitment system that uses AI to analyze resumes, score candidates, verify skills through automated tests, and provide actionable insights to recruiters.
 
+---
+
+## � Table of Contents
+
+- [📋 Overview](#-overview)
+- [🏗️ System Architecture](#️-system-architecture)
+- [📊 Recruiter Dashboard Features](#-recruiter-dashboard-features)
+- [🎯 Job-Specific Page Features](#-job-specific-page-features)
+- [👤 Candidate Profile Page Features](#-candidate-profile-page-features)
+- [🔄 Candidate Application Flow](#-candidate-application-flow)
+- [📦 Dummy Data Generation](#-dummy-data-generation)
+- [📁 Project Structure](#-project-structure)
+- [🚀 How to Run Locally](#-how-to-run-locally)
+- [🔐 Environment Variables](#-environment-variables)
+- [📸 Screenshots](#-screenshots)
+- [🧪 Testing the System](#-testing-the-system)
+- [🔧 Troubleshooting](#-troubleshooting)
+- [📚 Additional Documentation](#-additional-documentation)
+- [🤝 Contributing](#-contributing)
+- [📄 License](#-license)
+- [👥 Credits](#-credits)
+
+---
+
 ## 📋 Overview
 
 The AI-Powered Recruitment Platform streamlines the hiring process by automatically:
