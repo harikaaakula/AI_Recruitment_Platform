@@ -22,25 +22,31 @@ cd ../frontend
 npm install
 ```
 
-### 3. Configure Environment Variables
+### 3. Configure Environment Variables ⚠️ REQUIRED
+
+**IMPORTANT:** The `.env` file is required for the application to work!
 
 Create `backend/.env` file:
 ```bash
-cd ../backend
+cd backend
 cp .env.example .env
 ```
 
-Edit `backend/.env`:
+Edit `backend/.env` and set a JWT secret:
 ```env
 PORT=5001
-JWT_SECRET=your_secret_key_here_change_this
+JWT_SECRET=change_this_to_any_random_string_at_least_32_characters
 APP_URL=http://localhost:3000
 
 # Optional: AI Provider (works without this)
-AI_PROVIDER=openrouter
-OPENROUTER_API_KEY=your_api_key_here
-MODEL_NAME=deepseek/deepseek-chat-v3.1:free
+AI_PROVIDER=mock
 ```
+
+**Note:** 
+- The `JWT_SECRET` is REQUIRED for user authentication
+- Change it to any random string (recommended: 32+ characters)
+- Without this file, registration and login will fail
+- This project uses SQLite (file-based database), NOT MongoDB
 
 ### 4. Generate Sample Data
 
@@ -90,6 +96,20 @@ Frontend runs on: http://localhost:3000
 ---
 
 ## Troubleshooting
+
+### Registration/Login Fails - "Cannot connect to database"
+
+**This error message is misleading!** The project uses SQLite (not MongoDB).
+
+**Real cause:** Missing `.env` file
+
+**Solution:**
+```bash
+cd backend
+cp .env.example .env
+# Edit .env and set JWT_SECRET to any random string
+node server.js
+```
 
 ### Database Connection Error
 
