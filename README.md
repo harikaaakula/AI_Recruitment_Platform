@@ -495,7 +495,7 @@ The system includes 1,086 pre-generated applications to demonstrate functionalit
 
 ### Data Storage
 
-**CSV Files** (in project root):
+**CSV Files** (in `backend/data/generated/`):
 1. `generated_candidates.csv` - Candidate information
 2. `generated_applications.csv` - Application records
 3. `generated_tests.csv` - Test results and skill verification
@@ -525,6 +525,10 @@ The system includes 1,086 pre-generated applications to demonstrate functionalit
 sampleproject/
 ├── backend/
 │   ├── data/
+│   │   ├── generated/               # Generated CSV data files
+│   │   │   ├── generated_candidates.csv
+│   │   │   ├── generated_applications.csv
+│   │   │   └── generated_tests.csv
 │   │   ├── jobRoles.js              # 20 job role definitions with requirements
 │   │   └── testQuestions.js         # Question bank for skill tests
 │   ├── database/
@@ -574,9 +578,6 @@ sampleproject/
 │   ├── package.json                 # Frontend dependencies
 │   └── next.config.js               # Next.js configuration
 │
-├── generated_candidates.csv         # Generated candidate data
-├── generated_applications.csv       # Generated application data
-├── generated_tests.csv              # Generated test results
 ├── .gitignore                       # Git ignore rules
 ├── package.json                     # Root package.json
 └── README.md                        # This file
@@ -601,14 +602,15 @@ sampleproject/
 - PDF files uploaded by candidates
 - Cleaned on git (only .gitkeep tracked)
 
+**`backend/data/generated/`**: CSV seed data
+- Generated candidate, application, and test data
+- Used to populate database initially
+- Serve as backup/reference
+
 **`frontend/pages/recruiter/`**: Recruiter interface
 - Dashboard with analytics
 - Job-specific views
 - Candidate profiles
-
-**CSV files (root)**: Seed data
-- Used to populate database initially
-- Serve as backup/reference
 
 ---
 
