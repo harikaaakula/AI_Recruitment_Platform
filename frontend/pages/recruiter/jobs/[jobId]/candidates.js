@@ -180,10 +180,22 @@ export default function JobCandidates() {
             <p className="text-sm text-gray-600">For this position</p>
           </div>
           
-          <div className="bg-white p-6 rounded-lg shadow-md">
-            <h3 className="text-lg font-semibold text-gray-700 mb-2">Eligible</h3>
+          <div className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow group relative">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-lg font-semibold text-gray-700">Screening Passed</h3>
+              <span className="text-2xl">✅</span>
+            </div>
             <p className="text-3xl font-bold text-green-600">{eligibleCandidates}</p>
-            <p className="text-sm text-gray-600">{totalCandidates > 0 ? Math.round((eligibleCandidates/totalCandidates)*100) : 0}% pass rate</p>
+            <p className="text-sm text-gray-600">
+              {totalCandidates > 0 ? Math.round((eligibleCandidates/totalCandidates)*100) : 0}% passed AI screening
+            </p>
+            
+            {/* Tooltip */}
+            <div className="absolute bottom-full left-0 mb-2 hidden group-hover:block bg-gray-900 text-white text-xs rounded-lg py-3 px-4 w-72 z-50 shadow-2xl border border-gray-700">
+              <p className="font-semibold mb-2">✅ Screening Passed</p>
+              <p className="mb-2">Candidates whose resumes passed the AI screening process.</p>
+              <p className="text-gray-300">These candidates met the minimum requirements and are eligible to take the assessment test.</p>
+            </div>
           </div>
           
           <div className="bg-white p-6 rounded-lg shadow-md">

@@ -19,6 +19,7 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/jobs', require('./routes/jobs_redesigned'));
 app.use('/api/applications', require('./routes/applications_redesigned'));
 app.use('/api/tests', require('./routes/tests'));
+app.use('/api/analytics', require('./routes/analytics'));
 
 app.get('/', (req, res) => {
   res.json({ message: 'AI Recruitment Platform API' });
