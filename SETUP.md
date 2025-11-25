@@ -48,28 +48,28 @@ AI_PROVIDER=mock
 - Without this file, registration and login will fail
 - This project uses SQLite (file-based database), NOT MongoDB
 
-### 4. Generate Sample Data
+### 4. Verify Database
 
-**Option A: Use Python Script (Recommended)**
+The repository includes a pre-populated database with 931 candidates.
+
+**Check database exists:**
 ```bash
-# Install Python dependencies
-pip install faker numpy
+ls -lh backend/database/recruitment.db
+# Should show ~1.7MB file size
+```
 
-# Run generation script
-python scripts/generate_candidates.py
+**If database is missing or empty (0 bytes):**
+```bash
+cd backend
+python3 scripts/generate_candidates_v2.py
 ```
 
 This will create:
-- 1,086 candidates
-- Applications across 20 job roles
-- Test results and AI analysis
-- SQLite database with all data
-
-**Option B: Start with Empty Database**
-```bash
-# Just start the backend - it will create empty tables
-node server.js
-```
+- 931 candidates with realistic profiles
+- 1,925 applications across 20 cybersecurity roles
+- AI analysis results
+- Test scores and skill verification
+- Complete SQLite database
 
 ### 5. Start the Application
 
@@ -111,17 +111,38 @@ cp .env.example .env
 node server.js
 ```
 
+### "Failed to load dashboard data"
+
+**Cause:** Backend server not running or database empty
+
+**Solution:**
+```bash
+# 1. Check database has data
+ls -lh backend/database/recruitment.db
+# Should be ~1.7MB, not 0 bytes
+
+# 2. If empty, regenerate data
+cd backend
+python3 scripts/generate_candidates_v2.py
+
+# 3. Start backend server
+npm run dev
+
+# 4. Test API
+curl http://localhost:5000/api/health
+```
+
 ### Database Connection Error
 
 If you see "database connection error" or "table does not exist":
 
 ```bash
-# Delete the database file
-rm backend/database/recruitment.db
-
-# Restart backend (will recreate tables)
+# Regenerate database with data
 cd backend
-node server.js
+python3 scripts/generate_candidates_v2.py
+
+# Restart backend
+npm run dev
 ```
 
 ### Port Already in Use
