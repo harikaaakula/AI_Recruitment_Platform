@@ -2,886 +2,722 @@
 
 An intelligent recruitment system that uses AI to analyze resumes, score candidates, verify skills through automated tests, and provide actionable insights to recruiters.
 
----
+## Table of Contents
 
-## � Table of Contents
-
-- [Overview](#-overview)
-- [System Architecture](#️-system-architecture)
-- [Recruiter Dashboard Features](#-recruiter-dashboard-features)
-- [Job-Specific Page Features](#-job-specific-page-features)
-- [Candidate Profile Page Features](#-candidate-profile-page-features)
-- [Candidate Application Flow](#-candidate-application-flow)
-- [Dummy Data Generation](#-dummy-data-generation)
-- [Project Structure](#-project-structure)
-- [How to Run Locally](#-how-to-run-locally)
-- [Environment Variables](#-environment-variables)
-- [Screenshots](#-screenshots)
-- [Testing the System](#-testing-the-system)
-- [Troubleshooting](#-troubleshooting)
-- [Additional Documentation](#-additional-documentation)
-- [Contributing](#-contributing)
-- [License](#-license)
-- [Credits](#-credits)
+- [Overview](#overview)
+- [Features](#features)
+- [Technology Stack](#technology-stack)
+- [System Architecture](#system-architecture)
+- [Prerequisites](#prerequisites)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Running the Application](#running-the-application)
+- [Project Structure](#project-structure)
+- [Database Schema](#database-schema)
+- [How It Works](#how-it-works)
+- [Testing the System](#testing-the-system)
+- [Troubleshooting](#troubleshooting)
+- [API Documentation](#api-documentation)
+- [Contributing](#contributing)
+- [Contributors](#contributors)
 
 ---
 
 ## Overview
 
-The AI-Powered Recruitment Platform streamlines the hiring process by automatically:
-- **Parsing resumes** to extract candidate information, skills, education, and certifications
-- **Scoring candidates** using AI-based matching against job requirements
-- **Administering skill tests** to verify claimed competencies
-- **Providing analytics** including skill gaps, quality distributions, and top candidate recommendations
-- **Supporting weighted scoring** based on experience level (entry/mid/senior/lead)
+The AI-Powered Recruitment Platform streamlines the hiring process by automatically parsing resumes, scoring candidates using AI-based matching against job requirements, administering skill tests to verify competencies, and providing comprehensive analytics to recruiters.
 
-The platform features a comprehensive recruiter dashboard with real-time insights, job-specific candidate views, and detailed candidate profiles with skill verification results.
+The platform features:
+- AI-powered resume parsing and analysis
+- Semantic matching (understands "Splunk" = "SIEM", not just keyword matching)
+- Automated skill verification through technical assessments
+- Weighted composite scoring based on experience level
+- Real-time recruiter dashboard with insights
+- Job-specific candidate views
+- Detailed candidate profiles with skill verification
 
 ---
 
-##  System Architecture
+## Features
 
-### Technology Stack
+### For Recruiters
 
-**Frontend:**
+**Dashboard Analytics:**
+- Overview metrics (total jobs, candidates, eligibility rates)
+- Application status distribution
+- AI score distribution
+- Job performance analytics
+- Skill insights (in-demand skills, common gaps)
+- Top candidates ranking with weighted scores
+- Recent applications tracking
+
+**Job Management:**
+- 20 pre-configured cybersecurity job roles
+- Job-specific candidate views
+- Quality distribution analysis
+- Skill gap identification
+- Top candidate recommendations per job
+
+**Candidate Evaluation:**
+- Detailed candidate profiles
+- Skills analysis (matched vs gaps)
+- Experience and education verification
+- Test performance metrics
+- Skill verification results
+- AI-generated strengths and recommendations
+
+### For Candidates
+
+**Application Process:**
+- Simple resume upload (PDF)
+- Automatic information extraction
+- Instant AI-based screening
+- Skill-specific technical assessments
+- Real-time feedback and suggestions
+
+---
+
+## Technology Stack
+
+### Frontend
 - React.js with Next.js framework
 - Tailwind CSS for styling
 - Context API for state management
 - Axios for API communication
 
-**Backend:**
+### Backend
 - Node.js with Express.js
-- SQLite database for data persistence
+- SQLite database
 - JWT authentication
 - Multer for file uploads
-- PDF parsing for resume extraction
+- pdf-parse for resume extraction
 
-**AI/ML Pipeline:**
+### AI/ML
 - OpenRouter API with DeepSeek (free tier)
-- Fallback to pattern-based extraction
-- Custom matching engine for scoring
-- Skill verification through test results
+- Semantic matching engine
+- Pattern-based fallback extraction
+- Custom scoring algorithms
+- Temperature 0 for consistent results
 
-**Data Generation:**
-- Python script for generating realistic dummy data
-- 1,086 pre-generated applications across 20 job roles
-- CSV-based data storage and database seeding
+### Data
+- 931 pre-generated candidates
+- 1,331 applications across 20 job roles
+- Realistic skill distributions
+- CSV exports for reference
 
-### System Flow
+---
+
+## System Architecture
+
+For detailed system architecture and data flow visualization, see `docs/architecture-diagram.png`
+
+### Data Flow
 
 ```
-Candidate Application Flow:
-1. Candidate uploads resume (PDF)
-2. Backend extracts text from PDF
-3. AI analyzes resume and extracts structured data
-4. Matching engine calculates AI score against job requirements
-5. Application status determined (eligible/not_eligible)
-6. If eligible, candidate takes skill-specific test
-7. Test results verify claimed skills
-8. Weighted composite score calculated
-9. Data displayed on recruiter dashboard
+1. Candidate Application:
+   Resume Upload → PDF Text Extraction → AI Analysis → Score Calculation → 
+   Database Storage → Eligibility Determination
 
-Recruiter View Flow:
-1. Recruiter logs in
-2. Dashboard loads aggregated metrics from database
-3. Recruiter can view:
-   - Overall statistics (jobs, candidates, scores)
-   - Job-specific analytics
-   - Individual candidate profiles
-   - Skill insights and gaps
+2. Skill Testing (if eligible):
+   Test Generation → Question Selection → Candidate Answers → 
+   Scoring → Skill Verification → Composite Score Calculation
+
+3. Recruiter View:
+   Database Query → Data Aggregation → Analytics Calculation → 
+   Dashboard Display → Real-time Updates
 ```
 
----
+### Scoring System
 
-## 📊 Recruiter Dashboard Features
+**AI Resume Score (0-100%):**
+- Skills Match: 40% weight
+- Knowledge Match: 25% weight
+- Tasks Match: 25% weight
+- Certifications: 5% weight
+- Education: 5% weight
 
-### Overview Cards (Top Row)
+**Composite Score (weighted by experience level):**
+- Entry Level: 70% Resume + 30% Test
+- Mid Level: 40% Resume + 60% Test
+- Senior Level: 30% Resume + 70% Test
 
-#### 1. Total Jobs 
-- **What it shows**: Number of active job postings
-- **Calculation**: `COUNT(*) FROM job_role_table WHERE status = 'active'`
-- **Data source**: `job_role_table` table
-
-#### 2. Total Candidates 
-- **What it shows**: Total applications across all jobs
-- **Calculation**: `COUNT(*) FROM application_table`
-- **Data source**: `application_table` table
-
-#### 3. Eligible Candidates 
-- **What it shows**: Candidates who passed both AI screening AND skill test
-- **Calculation**: `COUNT(*) WHERE status = 'test_completed' AND test_score >= 70`
-- **Tooltip**: "Candidates whose AI score met the job threshold AND who passed the job-specific assessment (test score ≥ 70%)"
-- **Data source**: `application_table` + `assessment_test_table` tables
-
-#### 4. Average AI Score 
-- **What it shows**: Mean AI resume screening score across all candidates
-- **Calculation**: `AVG(ai_score) FROM resume_ai_analysis_table`
-- **Tooltip**: "Average AI resume screening score across all candidates. Evaluates skills match, experience, and qualifications"
-- **Data source**: `resume_ai_analysis_table` table
-
-#### 5. Average Test Score 
-- **What it shows**: Mean test score for candidates who completed assessments
-- **Calculation**: `AVG(test_score) FROM assessment_test_table WHERE test_score IS NOT NULL`
-- **Tooltip**: "Average score for candidates who completed job-specific technical assessments. Passing threshold is 70%"
-- **Data source**: `assessment_test_table` table
-
-### Analytics Visualizations
-
-#### Application Status Distribution
-- **Visual**: Horizontal bar chart with percentages
-- **Categories**:
-  - Test Passed (≥70%) - Green
-  - Test Failed (<70%) - Yellow  
-  - Not Eligible (Low AI Score) - Red
-- **Calculation**: Percentage of total applications in each category
-- **Data source**: `application_table` + `assessment_test_table` tables
-
-#### AI Score Distribution
-- **Visual**: Color-coded list with counts
-- **Ranges**:
-  - 90-100% (Excellent) - Green
-  - 80-89% (Good) - Blue
-  - 70-79% (Fair) - Yellow
-  - 60-69% (Below Average) - Orange
-  - Below 60% (Poor) - Red
-- **Calculation**: `COUNT(*) GROUP BY score_range`
-- **Data source**: `resume_ai_analysis_table` table
-
-### Job Performance Analytics Table
-
-**Columns:**
-- **Job Title**: Clickable link to job-specific page
-- **Applications**: Total candidates who applied
-- **Eligible Rate**: Percentage who passed screening (color-coded)
-- **Avg AI Score**: Mean AI score for this job
-- **Avg Test Score**: Mean test score for this job
-- **Action**: "View Candidates →" link
-
-**Calculations:**
-- Eligible Rate: `(eligible_count / total_applications) * 100`
-- Color coding: Green (≥50%), Yellow (≥25%), Red (<25%)
-
-**Data source**: Aggregated from `application_table`, `resume_ai_analysis_table`, `assessment_test_table` tables
-
-### Candidate Skill Insights
-
-#### Most In-Demand Skills
-- **What it shows**: Top 5 skills most candidates possess
-- **Calculation**: 
-  - Parse `skills_matched` JSON from all applications
-  - Count occurrences of each skill
-  - Sort by frequency, take top 5
-- **Visual**: Progress bars showing demand percentage
-- **Data source**: `resume_ai_analysis_table.skills_matched` (JSON field)
-
-#### Common Skill Gaps
-- **What it shows**: Top 4 skills most candidates are missing
-- **Calculation**:
-  - Parse `skill_gaps` JSON from all applications
-  - Count occurrences of each gap
-  - Calculate priority based on percentage:
-    - **High Priority** (Red): >30% of candidates missing
-    - **Medium Priority** (Yellow): 15-30% missing
-    - **Low Priority** (Green): <15% missing
-- **Tooltip**: Explains priority calculation on hover (ℹ️ icon)
-- **Data source**: `resume_ai_analysis_table.skill_gaps` (JSON field)
-
-### Recent Applications Table
-
-**Displays**: Latest 10 applications with:
-- Candidate name and email
-- Job title
-- AI Score (color-coded badge)
-- Test Score (color-coded badge or "-")
-- Status (color-coded badge)
-- Applied date
-- "View Analysis" button
-
-**Data source**: `application_table` JOIN `candidate_table`, `job_role_table`, `resume_ai_analysis_table`, `assessment_test_table`
-
-### Top Candidates This Week 🌟
-
-**What it shows**: Top 5 candidates by weighted composite score
-
-**Weighted Scoring Formula:**
-- **Entry Level**: (AI Score × 0.70) + (Test Score × 0.30)
-- **Mid Level**: (AI Score × 0.40) + (Test Score × 0.60)
-- **Senior Level**: (AI Score × 0.30) + (Test Score × 0.70)
-- **Lead Level**: (AI Score × 0.25) + (Test Score × 0.75)
-
-**Rationale**: Senior roles prioritize practical skills (test), entry roles prioritize potential (resume)
-
-**Display per candidate:**
-- Name and job title
-- AI Score badge (blue)
-- Test Score badge (green)
-- Weighted Composite Score (large purple number)
-- Experience level with weightage breakdown
-- "View Profile →" link
-
-**Data source**: Calculated from `resume_ai_analysis_table` + `assessment_test_table`, sorted by weighted score
+**Rationale:** Senior roles prioritize practical skills (test), entry roles prioritize potential (resume)
 
 ---
 
-## Job-Specific Page Features
-
-**URL**: `/recruiter/jobs/[jobId]/candidates`
-
-### Job Header
-- Job title, description, requirements
-- Salary range
-- Posted date
-- Status badge (active/closed)
-
-### Statistics Cards
-
-1. **Total Applicants**: Count of all candidates for this job
-2. **Eligible**: Count and pass rate percentage
-3. **Tests Completed**: Count and completion rate
-4. **Avg AI Score**: Mean AI score for this job
-
-### Job-Specific Insights
-
-#### Quality Distribution 📊
-- **Visual**: Progress bars for three quality tiers
-- **Categories**:
-  - Excellent (80-100%) - Green
-  - Good (60-79%) - Yellow
-  - Below Threshold (<60%) - Red
-- **Tooltip**: Explains how quality is calculated based on AI score
-- **Calculation**: `COUNT(*) WHERE ai_score IN range / total * 100`
-
-#### Skill Match Analysis 🎯
-- **Shows**: Top 3 most common skill gaps for this job
-- **Display**: Skill name, count of candidates missing it, percentage
-- **Purpose**: Helps recruiters identify if job requirements are too strict
-- **Tip**: "Consider: Adjust requirements or provide training for these skills"
-
-#### Top 3 Candidates ⭐
-- **Shows**: Best 3 candidates by average score (AI + Test) / 2
-- **Display**: Name, email, scores, badges, "View Full Profile" link
-- **Filter**: Only candidates who completed tests
-
-### Candidates Table
-
-**Features:**
-- Sortable by: Date Applied, AI Score, Test Score
-- Circular progress indicator for AI score (color-coded)
-- Test score badge or "Not taken"
-- Status badge
-- Applied date
-- Actions: "Details" (expand) + "Profile" (view full)
-
-**Expandable Rows:**
-Clicking "Details" shows skill verification grid:
--  **Verified Skills** (green): Skills proven through test
-- **Unverified Skills** (red): Claimed but not demonstrated
-- **Untested Skills** (yellow): Not covered by test questions
-
-**Data source**: `application_table` filtered by `role_id`, joined with all related tables
-
----
-
-## Candidate Profile Page Features
-
-**URL**: `/recruiter/applications/[id]`
-
-### Left Sidebar
-
-#### Candidate Information
-- Name, email, phone
-- Job applied for
-- Application date
-- Status badge (color-coded)
-
-#### Score Summary
-- **AI Resume Score**: Percentage with progress bar (blue)
-- **Test Score**: Percentage with progress bar (green) - if completed
-- **Overall Compatibility**: 
-  - **Weighted composite score** (purple, large)
-  - Shows calculation: "mid level (40% Resume + 60% Test)"
-  - If no test: Shows AI score only
-
-### Main Content Area
-
-#### Skills Analysis
-**Two-column layout:**
-
-**Left: ✓ Matched Skills** (Green)
-- Each skill shows name and proficiency level badge
-- Levels: expert (green), intermediate (yellow), beginner (gray)
-
-**Right: ⚠ Skill Gaps** (Red)
-- Each gap shows name and priority badge
-- Priority: high (red), medium (orange)
-
-#### Experience & Education
-**Three-column layout:**
-
-1. **Experience**: Years (large number) + level (entry/mid/senior)
-2. **Education**: Degree level + field of study
-3. **Certifications**: Badge list (shows first 3, then "+X more")
-
-#### Strengths & Recommendations
-**Two-column layout:**
-
-**Left: Strengths** (Green theme)
-- Auto-generated from profile data
-- Examples: "5 skills matched", "3 years experience", "2 certifications"
-
-**Right: Recommendations** (Orange theme)
-- Based on skill gaps and experience
-- Examples: "Develop expertise in: X, Y", "Consider obtaining certifications"
-
-#### Test Performance
-**Only shown if test completed**
-
-**Metrics displayed:**
-- Overall Score (blue card) - Percentage
-- Completed On (purple card) - Date
-
-**Skill Verification Section:**
-Three-column grid showing:
-- ✓ Verified Skills (green badges)
-- ✗ Unverified Skills (red badges)
-- ? Untested Skills (gray badges)
-
-**Data source**: Single application with all joins: `application_table` + `candidate_table` + `job_role_table` + `resume_ai_analysis_table` + `assessment_test_table`
-
----
-
-## Candidate Application Flow
-
-### Step-by-Step Process
-
-#### 1. Candidate Uploads Resume
-- **Frontend**: File upload form at `/apply`
-- **Validation**: PDF files only, max size check
-- **Action**: POST to `/api/applications/apply`
-
-#### 2. Resume Text Extraction
-- **Backend**: Multer receives file, saves to `backend/uploads/`
-- **PDF Parsing**: `pdf-parse` library extracts text
-- **Fallback**: If parsing fails, uses filename + mock content
-
-#### 3. AI Analysis
-- **Primary**: OpenRouter API with DeepSeek model
-- **Prompt**: Structured JSON extraction of:
-  - Years of experience
-  - Skills, knowledge, tasks
-  - Education level
-  - Certifications
-  - Job titles
-- **Fallback**: Pattern-based extraction using regex if AI fails
-
-#### 4. Resume Parsing Details
-
-**Education Extraction:**
-```javascript
-// Extracts full degree name, not just "Bachelor's"
-Pattern: /bachelor[^\n|]*/i
-Result: "Bachelor of Science in Information Technology – Cybersecurity Focus"
-```
-
-**Certification Extraction:**
-```javascript
-// Deduplicates certifications using Set
-Patterns: {
-  'CompTIA Security+': /CompTIA\s+Security\+/gi,
-  'CEH': /Certified\s+Ethical\s+Hacker|(?<!\w)CEH(?!\w)/gi,
-  'CISSP': /(?<!\w)CISSP(?!\w)/gi,
-  // ... more patterns
-}
-Result: ["CompTIA Security+", "CEH"] // No duplicates
-```
-
-**Skills Extraction:**
-- Matches against job's required skills list
-- Case-insensitive matching
-- Returns array of matched skills
-
-#### 5. AI Scoring
-- **Matching Engine**: `backend/services/matchingEngine.js`
-- **Calculation**:
-  - Skill Match: (matched_skills / required_skills) × skill_weight
-  - Knowledge Match: (matched_knowledge / required_knowledge) × knowledge_weight
-  - Task Match: (matched_tasks / required_tasks) × task_weight
-  - Experience Match: Bonus/penalty based on years
-  - Final Score: Weighted sum of all components
-
-#### 6. Application Creation
-- **Database Insert**: Creates records in:
-  - `candidate_table` table (if new)
-  - `application_table` table with status
-  - `resume_ai_analysis_table` table with scores and extracted data
-- **Status Determination**:
-  - `eligible`: AI score ≥ job threshold (typically 60-70%)
-  - `not_eligible`: AI score < threshold
-
-#### 7. Skill Test (If Eligible)
-- **Test Assignment**: System generates test based on job category
-- **Question Selection**: 
-  - Maps candidate's claimed skills to test questions
-  - Selects 4-10 questions covering different skills
-  - Multiple choice format
-- **Test Taking**: Candidate answers questions
-- **Scoring**: Percentage of correct answers
-
-#### 8. Skill Verification
-- **Process**: For each claimed skill:
-  - Find questions that test that skill
-  - Calculate: (correct_answers / total_questions) × 100
-  - **Verified**: ≥70% correct
-  - **Unverified**: <70% correct
-  - **Untested**: No questions available
-- **Storage**: Results saved in `assessment_test_table` table as JSON
-
-#### 9. Final Status Update
-- **Status**: Changed to `test_completed`
-- **Composite Score**: Calculated using weighted formula
-- **Dashboard Update**: New data immediately available
-
-#### 10. Data Propagation
-All views update automatically:
-- ✅ Recruiter dashboard shows new application
-- ✅ Job-specific page includes new candidate
-- ✅ Candidate profile displays complete analysis
-- ✅ Skill insights update with new data
-
----
-
-## Dummy Data Generation
-
-### Overview
-The system includes 1,086 pre-generated applications to demonstrate functionality without requiring manual data entry.
-
-### Generation Script
-**Location**: `backend/scripts/generate_candidates.py`
-
-**What it generates:**
-- 1,086 unique candidates with realistic names and emails
-- Applications distributed across 20 cybersecurity job roles
-- AI scores ranging from 60-93% (realistic distribution)
-- Test scores ranging from 0-93% (with 66.8% pass rate)
-- Skills matched and gaps for each candidate
-- Certifications (Security+, CEH, CISSP, etc.)
-- Education levels (Associate's, Bachelor's, Master's)
-- Experience years (0-11 years)
-
-### Data Distribution
-
-**Job Roles** (20 total):
-- Security Analyst, Penetration Tester, Security Engineer
-- SOC Analyst, Cloud Security Engineer, Incident Responder
-- Vulnerability Analyst, Network Security Engineer
-- Threat Intelligence Analyst, Application Security Engineer
-- And 10 more specialized roles
-
-**Score Ranges:**
-- AI Scores: 60-93% (mean: 72.25%)
-- Test Scores: 0-93% (mean: 77.72%)
-- Eligible candidates: 725 (66.8%)
-- Not eligible: 212 (19.5%)
-- Test failed: 149 (13.7%)
-
-**Date Ranges:**
-- Applications: October 1, 2024 - November 16, 2025
-- Realistic timestamps for applied_at, test_completed_at
-
-**Skills Distribution:**
-- Each candidate has 3-7 matched skills
-- Each candidate has 2-5 skill gaps
-- Skills are job-specific (e.g., SIEM for Security Analyst)
-
-### Data Storage
-
-**CSV Files** (in `backend/data/generated/`):
-1. `generated_candidates.csv` - Candidate information
-2. `generated_applications.csv` - Application records
-3. `generated_tests.csv` - Test results and skill verification
-
-**Database**: `backend/database/recruitment.db`
-- SQLite database with 6 tables
-- Pre-populated with all 1,086 applications
-- Ready to use immediately after cloning
-
-### Data Loading Process
-
-**Initial Setup:**
-1. Python script generates CSV files
-2. CSV data is loaded into SQLite database
-3. Database is committed to repository
-
-**Runtime:**
-- Backend reads from database (not CSV)
-- CSV files serve as backup/reference
-- New applications are stored directly in database
-
----
-
-##  Project Structure
-
-```
-sampleproject/
-├── backend/
-│   ├── data/
-│   │   ├── generated/               # Generated CSV data files
-│   │   │   ├── generated_candidates.csv
-│   │   │   ├── generated_applications.csv
-│   │   │   └── generated_tests.csv
-│   │   ├── jobRoles.js              # 20 job role definitions with requirements
-│   │   └── testQuestions.js         # Question bank for skill tests
-│   ├── database/
-│   │   └── recruitment.db           # SQLite database (1,086 applications)
-│   ├── middleware/
-│   │   └── auth.js                  # JWT authentication & role checking
-│   ├── routes/
-│   │   ├── applications_redesigned.js  # Application endpoints
-│   │   ├── auth.js                  # Login/register endpoints
-│   │   ├── jobs_redesigned.js       # Job endpoints
-│   │   └── tests.js                 # Test endpoints
-│   ├── scripts/
-│   │   └── generate_candidates.py   # Data generation script
-│   ├── services/
-│   │   ├── aiService.js             # AI resume parsing & extraction
-│   │   ├── improvementSuggestions.js # Candidate recommendations
-│   │   └── matchingEngine.js        # Score calculation logic
-│   ├── uploads/
-│   │   └── .gitkeep                 # Resume upload directory
-│   ├── .env                         # Environment variables (not in git)
-│   ├── .env.example                 # Environment template
-│   ├── package.json                 # Backend dependencies
-│   └── server.js                    # Express server entry point
-│
-├── frontend/
-│   ├── components/
-│   │   ├── AIRecommendations.js    # Candidate recommendations display
-│   │   ├── Layout.js                # Page layout wrapper
-│   │   └── ScoringExplanation.js   # Scoring methodology modal
-│   ├── context/
-│   │   └── AuthContext.js           # Authentication state management
-│   ├── pages/
-│   │   ├── recruiter/
-│   │   │   ├── applications/
-│   │   │   │   └── [id].js          # Candidate profile page
-│   │   │   ├── jobs/
-│   │   │   │   └── [jobId]/
-│   │   │   │       └── candidates.js # Job-specific candidates page
-│   │   │   └── dashboard.js         # Main recruiter dashboard
-│   │   ├── _app.js                  # Next.js app wrapper
-│   │   ├── index.js                 # Landing page
-│   │   └── login.js                 # Login page
-│   ├── styles/
-│   │   └── globals.css              # Global styles (Tailwind)
-│   ├── utils/
-│   │   └── api.js                   # API client functions
-│   ├── package.json                 # Frontend dependencies
-│   └── next.config.js               # Next.js configuration
-│
-├── .gitignore                       # Git ignore rules
-├── package.json                     # Root package.json
-└── README.md                        # This file
-```
-
-### Key Directories Explained
-
-**`backend/data/`**: Static data definitions
-- Job roles with skills, knowledge, tasks requirements
-- Test question bank mapped to skills
-
-**`backend/database/`**: SQLite database
-- Contains all application data
-- 6 tables: candidates, applications, job_roles, ai_analysis, tests, decisions
-
-**`backend/services/`**: Business logic
-- AI parsing and extraction
-- Matching and scoring algorithms
-- Suggestion generation
-
-**`backend/uploads/`**: Resume storage
-- PDF files uploaded by candidates
-- Cleaned on git (only .gitkeep tracked)
-
-**`backend/data/generated/`**: CSV seed data
-- Generated candidate, application, and test data
-- Used to populate database initially
-- Serve as backup/reference
-
-**`frontend/pages/recruiter/`**: Recruiter interface
-- Dashboard with analytics
-- Job-specific views
-- Candidate profiles
-
----
-
-##  How to Run Locally
-
-### Prerequisites
+## Prerequisites
 
 - Node.js (v14 or higher)
 - npm or yarn
-- Python 3.x (only if regenerating data)
+- Python 3.x (optional, only for data regeneration)
+- OpenRouter API key (optional, for AI features)
 
-### Installation Steps
+---
 
-#### 1. Clone the Repository
+## Installation
+
+### 1. Clone the Repository
+
 ```bash
 git clone <repository-url>
 cd sampleproject
 ```
 
-#### 2. Install Backend Dependencies
+### 2. Install Backend Dependencies
+
 ```bash
 cd backend
 npm install
 ```
 
-#### 3. Install Frontend Dependencies
+### 3. Install Frontend Dependencies
+
 ```bash
 cd ../frontend
 npm install
 ```
 
-#### 4. Configure Environment Variables
+### 4. Install Root Dependencies (for concurrent running)
 
-Create `backend/.env` file (copy from `.env.example`):
 ```bash
-cd ../backend
+cd ..
+npm install
+```
+
+---
+
+## Configuration
+
+### Environment Variables
+
+Create `backend/.env` file:
+
+```bash
+cd backend
 cp .env.example .env
 ```
 
-Edit `.env` and configure:
+Edit `backend/.env`:
+
 ```env
+# Server Configuration
 PORT=5001
-JWT_SECRET=your_secret_key_here
+JWT_SECRET=your_secret_key_here_change_in_production
 
-# AI Provider (optional - works with mock by default)
-AI_PROVIDER=openrouter
-OPENROUTER_API_KEY=your_api_key_here  # Get free key from openrouter.ai
-MODEL_NAME=deepseek/deepseek-chat-v3.1:free
-
+# Frontend URL
 APP_URL=http://localhost:3000
+
+# AI Configuration (Optional - works without API key using fallback)
+AI_PROVIDER=openrouter
+OPENROUTER_API_KEY=your_openrouter_api_key_here
+MODEL_NAME=deepseek/deepseek-chat:free
+
+# Alternative: Use OpenAI
+# AI_PROVIDER=openai
+# OPENAI_API_KEY=your_openai_api_key_here
 ```
 
-**Note**: The system works without an API key using pattern-based extraction. For better accuracy, get a free OpenRouter API key from https://openrouter.ai/keys
+### AI Provider Setup (Optional)
 
-#### 5. Start Backend Server
+The system works without an API key using pattern-based extraction. For better accuracy:
+
+**Option 1: OpenRouter (Recommended - Free Tier Available)**
+1. Visit https://openrouter.ai/keys
+2. Create account and generate API key
+3. Set `AI_PROVIDER=openrouter` and add key to `.env`
+4. Free models available: `deepseek/deepseek-chat:free`
+
+**Option 2: OpenAI**
+1. Visit https://platform.openai.com/api-keys
+2. Generate API key
+3. Set `AI_PROVIDER=openai` and add key to `.env`
+
+**Option 3: Mock Mode (No API Key)**
+- Leave `AI_PROVIDER` unset or set to `mock`
+- System uses regex-based extraction
+- Works well for testing and development
+
+---
+
+## Running the Application
+
+### Method 1: Run Both Servers Concurrently (Recommended)
+
+From project root:
+
+```bash
+npm start
+```
+
+This starts both backend (port 5001) and frontend (port 3000) simultaneously.
+
+### Method 2: Run Servers Separately
+
+**Terminal 1 - Backend:**
 ```bash
 cd backend
 node server.js
 ```
 
-Backend will start on http://localhost:5001
-
-#### 6. Start Frontend Server
+**Terminal 2 - Frontend:**
 ```bash
 cd frontend
 npm run dev
 ```
 
-Frontend will start on http://localhost:3000
+### Access the Application
 
-#### 7. Login as Recruiter
-
-**Default Credentials:**
-- Email: `hr@cybersec.com`
-- Password: `recruiter123`
-
-### Verification
-
-After starting both servers:
-1. Navigate to http://localhost:3000
+1. Open browser to http://localhost:3000
 2. Click "Login"
-3. Use recruiter credentials
-4. You should see the dashboard with 1,086 applications
+3. Use default recruiter credentials:
+   - Email: `recruiter@example.com`
+   - Password: `password123`
 
 ---
 
-## Environment Variables
-
-### Required Variables
-
-| Variable | Description | Default | Required |
-|----------|-------------|---------|----------|
-| `PORT` | Backend server port | 5001 | Yes |
-| `JWT_SECRET` | Secret key for JWT tokens | - | Yes |
-| `APP_URL` | Frontend URL | http://localhost:3000 | Yes |
-
-### Optional AI Configuration
-
-| Variable | Description | Options |
-|----------|-------------|---------|
-| `AI_PROVIDER` | AI service to use | `openrouter`, `openai`, `mock` |
-| `OPENROUTER_API_KEY` | OpenRouter API key | Get from openrouter.ai |
-| `MODEL_NAME` | AI model to use | `deepseek/deepseek-chat-v3.1:free` |
-| `OPENAI_API_KEY` | OpenAI API key (if using OpenAI) | Get from openai.com |
-
-### Security Notes
-
-- Never commit `.env` file to git
-- Use `.env.example` as template
-- Rotate JWT_SECRET in production
-- Keep API keys confidential
-
----
-
-## Screenshots
-
-<!-- TODO: Add screenshots here -->
-
-### Dashboard Overview
-*Screenshot showing the main recruiter dashboard with overview cards, charts, and tables*
-
-### Job-Specific View
-*Screenshot showing the job candidates page with quality distribution and top candidates*
-
-### Candidate Profile
-*Screenshot showing detailed candidate profile with skills analysis and test results*
-
-### Application Flow
-*Screenshot showing the candidate application form and resume upload*
-
----
-
-##  Testing the System
-
-### Test Candidate Application
-
-1. **Logout** from recruiter account
-2. **Navigate** to application page
-3. **Upload** a resume (PDF format)
-4. **Fill** candidate information
-5. **Submit** application
-6. **Take** the skill test (if eligible)
-7. **Login** as recruiter to see results
-
-### Sample Resume Format
+## Project Structure
 
 ```
+sampleproject/
+├── backend/
+│   ├── config/
+│   │   └── security.js              # Security configurations
+│   ├── data/
+│   │   ├── csv/                     # Database exports (reference)
+│   │   │   ├── 1_candidates.csv
+│   │   │   ├── 2_job_roles.csv
+│   │   │   ├── 3_applications.csv
+│   │   │   ├── 4_ai_analysis.csv
+│   │   │   ├── 5_tests.csv
+│   │   │   ├── 6_decisions.csv
+│   │   │   ├── 7_test_questions.csv
+│   │   │   ├── 8_job_roles_detailed.csv
+│   │   │   └── ERD_DOCUMENTATION.md
+│   │   ├── jobRoles.js              # 20 job definitions
+│   │   ├── testQuestions.js         # Test question bank
+│   │   ├── testQuestions_batch1.js
+│   │   └── testQuestions_batch2.js
+│   ├── database/
+│   │   ├── init.js                  # Database initialization
+│   │   └── recruitment.db           # SQLite database (1,331 applications)
+│   ├── middleware/
+│   │   └── auth.js                  # JWT authentication
+│   ├── routes/
+│   │   ├── analytics.js             # Analytics endpoints
+│   │   ├── applications_redesigned.js
+│   │   ├── auth.js                  # Login/register
+│   │   ├── jobs_redesigned.js
+│   │   └── tests.js                 # Test endpoints
+│   ├── scripts/
+│   │   ├── add_multiple_applications.py
+│   │   ├── backup_database.py
+│   │   └── generate_candidates_v2.py
+│   ├── services/
+│   │   ├── aiService.js             # AI parsing & scoring
+│   │   ├── improvementSuggestions.js
+│   │   └── matchingEngine.js        # Score calculation
+│   ├── uploads/                     # Resume storage
+│   ├── utils/
+│   │   └── pdfParser.js             # PDF extraction
+│   ├── .env.example                 # Environment template
+│   ├── package.json
+│   └── server.js                    # Express server
+│
+├── frontend/
+│   ├── components/
+│   │   ├── DashboardFilters.js
+│   │   ├── JobCandidateFilters.js
+│   │   ├── Layout.js
+│   │   ├── PredictiveInsights.js
+│   │   └── ScoringExplanation.js
+│   ├── context/
+│   │   └── AuthContext.js
+│   ├── pages/
+│   │   ├── recruiter/
+│   │   │   ├── applications/
+│   │   │   │   └── [id].js          # Candidate profile
+│   │   │   ├── jobs/
+│   │   │   │   └── [jobId]/
+│   │   │   │       └── candidates.js
+│   │   │   └── dashboard.js         # Main dashboard
+│   │   ├── _app.js
+│   │   ├── index.js                 # Landing page
+│   │   ├── jobs/
+│   │   │   └── index.js             # Job listings
+│   │   └── login.js
+│   ├── styles/
+│   │   └── globals.css
+│   ├── utils/
+│   │   ├── api.js
+│   │   └── filterHelpers.js
+│   ├── next.config.js
+│   └── package.json
+│
+├── docs/
+│   ├── architecture-diagram.png     # System architecture diagram
+│   ├── erd-diagram.png              # Database ERD diagram
+│   └── PROJECT_DOCUMENTATION.md     # Detailed technical docs
+│
+├── NICEframeworkfinal.xlsx          # NICE Framework reference
+├── .gitignore
+├── package.json                     # Root package (concurrent)
+└── README.md                        # This file
+```
+
+---
+
+## Database Schema
+
+For detailed ERD visualization, see `docs/erd-diagram.png`
+
+### Tables Overview
+
+**1. candidates**
+- Stores candidate information
+- Fields: candidate_id, name, email, phone, resume_path, created_at
+
+**2. job_roles**
+- Job postings and requirements
+- Fields: role_id, title, description, requirements (JSON), status, recruiter_id
+
+**3. applications**
+- Links candidates to jobs
+- Fields: application_id, candidate_id, role_id, status, applied_at
+
+**4. ai_analysis**
+- AI resume analysis results
+- Fields: analysis_id, application_id, ai_score, skills_matched (JSON), skill_gaps (JSON), experience_years, experience_level, education, certifications (JSON), reasoning, top_strengths (JSON), top_gaps (JSON)
+
+**5. tests**
+- Test results and skill verification
+- Fields: test_id, application_id, test_score, test_token, answers (JSON), verification_details (JSON), test_completed_at
+
+**6. decisions**
+- Composite scores and final decisions
+- Fields: decision_id, application_id, composite_score, resume_weight, test_weight, decided_by
+
+### Relationships
+
+```
+candidates (1) → (N) applications
+job_roles (1) → (N) applications
+applications (1) → (1) ai_analysis
+applications (1) → (1) tests
+applications (1) → (1) decisions
+```
+
+For detailed schema documentation, see `backend/data/csv/ERD_DOCUMENTATION.md`
+
+---
+
+## How It Works
+
+### 1. Resume Parsing
+
+**PDF Text Extraction:**
+- Uses `pdf-parse` library to extract all readable text
+- Extracts: contact info, work experience, skills, education, certifications, projects
+
+**AI Analysis:**
+- Sends extracted text + job requirements to AI (LLM)
+- AI performs semantic matching (understands "Splunk" = "SIEM")
+- Returns structured data: skills, knowledge, tasks, experience, education, certifications
+
+**Fallback Mode:**
+- If AI unavailable, uses regex pattern matching
+- Extracts certifications, education, experience years
+- Matches skills against job requirements
+
+### 2. Scoring Calculation
+
+**Component Scores (0-100% each):**
+- Skills Match: Percentage of required skills found
+- Knowledge Match: Percentage of required knowledge areas found
+- Tasks Match: Percentage of required tasks/experience found
+- Certifications Match: Percentage of required certifications held
+- Education Match: Degree level match
+
+**Weighted Final Score:**
+```
+AI Score = (Skills × 40%) + (Knowledge × 25%) + (Tasks × 25%) + 
+           (Certs × 5%) + (Education × 5%)
+```
+
+**Eligibility:**
+- Score ≥ 60% → Eligible for test
+- Score < 60% → Not eligible
+
+### 3. Skill Testing
+
+**Test Generation:**
+- Maps candidate's claimed skills to test questions
+- Selects 4-10 questions covering different skills
+- Multiple choice format
+
+**Skill Verification:**
+- For each skill: calculates (correct answers / total questions) × 100
+- Verified: ≥70% correct
+- Unverified: <70% correct
+- Untested: No questions available
+
+### 4. Composite Score
+
+**Experience-Based Weighting:**
+- Determined from job's experience range average
+- Entry (<2.5 years): 70% resume, 30% test
+- Mid (2.5-4.5 years): 40% resume, 60% test
+- Senior (>4.5 years): 30% resume, 70% test
+
+**Calculation:**
+```
+Composite = (AI Score × Resume Weight) + (Test Score × Test Weight)
+```
+
+### 5. Dashboard Analytics
+
+**Real-time Calculations:**
+- Aggregates data from all tables
+- Calculates statistics, distributions, rankings
+- Identifies skill trends and gaps
+- Ranks candidates by composite scores
+
+---
+
+## Testing the System
+
+### Test with Existing Data
+
+The system includes 931 candidates with 1,331 applications pre-loaded.
+
+1. Login as recruiter (credentials above)
+2. Explore dashboard analytics
+3. Click on any job to see candidates
+4. View individual candidate profiles
+5. Check skill verification results
+
+### Test New Application
+
+**1. Prepare a Resume (PDF format)**
+
+Sample content:
+```
 John Doe
-Email: john.doe@example.com
-Phone: (555) 123-4567
+john.doe@example.com | (555) 123-4567
+
+PROFESSIONAL SUMMARY
+Cybersecurity professional with 5 years of experience in SOC operations
+
+EXPERIENCE
+Security Analyst | ABC Company | 2020-2024
+- Monitored SIEM alerts using Splunk
+- Conducted incident response investigations
+- Performed malware analysis
+
+SKILLS
+- SIEM (Splunk, QRadar)
+- Incident Response
+- Network Security
+- Python scripting
 
 EDUCATION
-Bachelor of Science in Information Technology
-State University | 2020
+Bachelor of Science in Cybersecurity
+XYZ University, 2019
 
 CERTIFICATIONS
 - CompTIA Security+
-- Certified Ethical Hacker (CEH)
-
-EXPERIENCE
-Security Analyst - TechCorp Inc. (2020-2024)
-- Monitored security alerts using SIEM tools
-- Performed log analysis and threat detection
-
-SKILLS
-- SIEM tools, Log analysis, Threat detection
-- Incident handling, Security monitoring
+- CEH
 ```
 
+**2. Submit Application**
+- Logout from recruiter account
+- Navigate to job listings
+- Select a job and click "Apply"
+- Upload resume and fill information
+- Submit application
+
+**3. Take Test (if eligible)**
+- If AI score ≥ 60%, you'll receive test link
+- Answer technical questions
+- Submit test
+
+**4. View Results**
+- Login as recruiter
+- Check dashboard for new application
+- View candidate profile with scores
+
 ---
 
-##  Troubleshooting
+## Troubleshooting
 
-### Backend won't start
-- Check if port 5001 is available
-- Verify `.env` file exists
-- Run `npm install` in backend directory
+### Backend Issues
 
-### Frontend won't start
-- Check if port 3000 is available
-- Run `npm install` in frontend directory
-- Clear `.next` cache: `rm -rf .next`
+**Port already in use:**
+```bash
+# Kill process on port 5001
+lsof -ti:5001 | xargs kill -9
+```
 
-### Database errors
-- Database file should exist at `backend/database/recruitment.db`
-- Check file permissions
-- If corrupted, regenerate from CSV data
+**Database errors:**
+- Check `backend/database/recruitment.db` exists
+- Verify file permissions
+- Check console for specific error messages
 
-### Resume upload fails
-- Check `backend/uploads/` directory exists
-- Verify file is PDF format
-- Check file size (max 10MB)
+**Module not found:**
+```bash
+cd backend
+rm -rf node_modules package-lock.json
+npm install
+```
 
-### AI extraction not working
-- System falls back to pattern-based extraction automatically
-- Check console logs for AI errors
+### Frontend Issues
+
+**Port 3000 in use:**
+```bash
+# Kill process on port 3000
+lsof -ti:3000 | xargs kill -9
+```
+
+**Build errors:**
+```bash
+cd frontend
+rm -rf .next node_modules package-lock.json
+npm install
+npm run dev
+```
+
+**API connection failed:**
+- Verify backend is running on port 5001
+- Check `APP_URL` in backend `.env`
+- Check browser console for CORS errors
+
+### AI Issues
+
+**Resume parsing not working:**
+- System automatically falls back to pattern matching
+- Check backend console for AI errors
 - Verify API key if using OpenRouter/OpenAI
+- Try with mock mode first
+
+**Inconsistent scores:**
+- Temperature is set to 0 for consistency
+- Same resume should get same score (±1-2%)
+- If variation >5%, check AI provider status
+
+### Upload Issues
+
+**Resume upload fails:**
+- Check file is PDF format
+- Verify file size <10MB
+- Check `backend/uploads/` directory exists
+- Verify file permissions
+
+**PDF parsing fails:**
+- System uses fallback content
+- Check PDF is not password-protected
+- Try with a different PDF
 
 ---
 
-##  Additional Documentation
+## API Documentation
 
-### API Endpoints
+### Authentication
 
-**Authentication:**
-- `POST /api/auth/register` - Register new user
-- `POST /api/auth/login` - Login user
+**POST /api/auth/register**
+- Register new user
+- Body: `{ email, password, role, name }`
 
-**Jobs:**
-- `GET /api/jobs` - Get all jobs
-- `GET /api/jobs/:id` - Get job by ID
-- `GET /api/jobs/recruiter/my-jobs` - Get recruiter's jobs
+**POST /api/auth/login**
+- Login user
+- Body: `{ email, password }`
+- Returns: JWT token
 
-**Applications:**
-- `POST /api/applications/apply` - Submit application
-- `GET /api/applications/recruiter/all` - Get all applications (recruiter)
-- `GET /api/applications/:id` - Get application details
-- `GET /api/applications/job/:jobId` - Get applications for job
+### Jobs
 
-**Tests:**
-- `GET /api/tests/:token` - Get test questions
-- `POST /api/tests/:token/submit` - Submit test answers
+**GET /api/jobs**
+- Get all active jobs
+- Public endpoint
 
-### Database Schema
+**GET /api/jobs/:id**
+- Get job details by ID
+- Public endpoint
 
-**Active Tables (As shown in ERD - Major tables only):**
+**GET /api/jobs/recruiter/my-jobs**
+- Get recruiter's jobs
+- Requires authentication
 
-1. **`candidate_table`** (1,088 records) - Candidate information (name, email, phone, resume_path)
-2. **`application_table`** (1,088 records) - Application records (candidate_id, role_id, status, dates)
-3. **`job_role_table`** (20 records) - Job definitions (title, description, requirements, thresholds)
-4. **`resume_ai_analysis_table`** (1,088 records) - AI scoring results (ai_score, skills_matched, skill_gaps, education, certifications)
-5. **`assessment_test_table`** (876 records) - Test results and skill verification (test_score, verified_skills, unverified_skills)
-6. **`recruiter_decision_table`** (873 records) - Composite scores and final decisions (composite_score, weights, final_decision)
+### Applications
 
-**Note**: The ERD diagram shows only the major tables above. The `user_table` is not included in the ERD as it's used only for authentication/login purposes.
+**POST /api/applications/apply**
+- Submit job application
+- Body: FormData with resume file and candidate info
+- Returns: Application ID, AI score, eligibility
+
+**GET /api/applications/recruiter/all**
+- Get all applications for recruiter
+- Requires authentication
+- Returns: Applications with scores and candidate info
+
+**GET /api/applications/:id**
+- Get application details
+- Returns: Complete application with AI analysis and test results
+
+**GET /api/applications/job/:jobId**
+- Get all applications for specific job
+- Requires authentication
+
+### Tests
+
+**GET /api/tests/:token**
+- Get test questions for candidate
+- Token provided after eligible application
+
+**POST /api/tests/:token/submit**
+- Submit test answers
+- Body: `{ answers: [{question_id, selected}] }`
+- Returns: Test score and skill verification
+
+### Analytics
+
+**GET /api/analytics/dashboard**
+- Get dashboard analytics
+- Requires authentication
+- Returns: Aggregated statistics and insights
 
 ---
 
 ## Contributing
 
-This is a demonstration project. For production use, consider:
-- Adding user registration flow
-- Implementing email notifications
-- Adding more robust authentication
-- Scaling database to PostgreSQL/MySQL
-- Adding file validation and virus scanning
-- Implementing rate limiting
-- Adding comprehensive error handling
+This is a demonstration project showcasing AI-powered recruitment. For production use, consider:
+
+**Security Enhancements:**
+- Implement rate limiting
+- Add CSRF protection
+- Enhance input validation
+- Add file virus scanning
+- Implement secure session management
+
+**Scalability:**
+- Migrate to PostgreSQL/MySQL
+- Add Redis for caching
+- Implement job queues for AI processing
+- Add CDN for file storage
+
+**Features:**
+- Email notifications
+- Calendar integration
+- Video interview scheduling
+- Collaborative hiring workflows
+- Advanced analytics and reporting
 
 ---
 
-## License
+## Contributors
 
-This project is for demonstration purposes.
-
----
-
-##  Credits
-
-Built as an AI-powered recruitment platform demonstration showcasing:
-- Resume parsing and analysis
-- Automated candidate scoring
-- Skill verification through testing
-- Data-driven recruitment insights
-
----
-
-## Contributors 
 - Harika Aakula
 - Keerthi Vaddepalli
 - Rohit Reddy Chinthala
 - Naresh Arepalli
 
+---
 
+Built as an AI-powered recruitment platform demonstration showcasing resume parsing, automated candidate scoring, skill verification, and data-driven recruitment insights.

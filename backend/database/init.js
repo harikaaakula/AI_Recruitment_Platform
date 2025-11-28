@@ -91,6 +91,23 @@ db.serialize(() => {
     }
   });
 
+  // Add top_strengths and top_gaps columns (migration)
+  db.run(`ALTER TABLE ai_analysis ADD COLUMN top_strengths TEXT`, (err) => {
+    if (err && !err.message.includes('duplicate column')) {
+      console.error('❌ Migration error (top_strengths):', err.message);
+    } else if (!err) {
+      console.log('✅ top_strengths column added successfully');
+    }
+  });
+
+  db.run(`ALTER TABLE ai_analysis ADD COLUMN top_gaps TEXT`, (err) => {
+    if (err && !err.message.includes('duplicate column')) {
+      console.error('❌ Migration error (top_gaps):', err.message);
+    } else if (!err) {
+      console.log('✅ top_gaps column added successfully');
+    }
+  });
+
   // Tests table
   db.run(`
     CREATE TABLE IF NOT EXISTS tests (

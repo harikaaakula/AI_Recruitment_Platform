@@ -105,6 +105,8 @@ router.get('/:id', (req, res) => {
       ai.education,
       ai.certifications,
       ai.reasoning,
+      ai.top_strengths,
+      ai.top_gaps,
       ai.analysis_completed_at,
       t.test_score,
       t.started_at as test_started_at,
@@ -190,10 +192,16 @@ router.post('/apply', upload.single('resume'), async (req, res) => {
             const pdfData = await pdfParse(resumeBuffer);
             resumeText = pdfData.text || 'Resume content could not be extracted from PDF';
             console.log('✅ PDF parsed successfully, text length:', resumeText.length);
+            console.log('\n📄 ========== EXTRACTED RESUME TEXT ==========');
+            console.log(resumeText);
+            console.log('========== END OF EXTRACTED TEXT ==========\n');
           } else {
             // If not PDF, try to read as text
             resumeText = resumeBuffer.toString('utf8');
             console.log('✅ File read as text, length:', resumeText.length);
+            console.log('\n📄 ========== EXTRACTED RESUME TEXT ==========');
+            console.log(resumeText);
+            console.log('========== END OF EXTRACTED TEXT ==========\n');
           }
         } catch (pdfError) {
           console.error('❌ PDF parsing error:', pdfError.message);
@@ -350,8 +358,9 @@ CERTIFICATIONS:
                           console.log('💾 Saving AI reasoning to database:', aiResult.reasoning);
                           db.run(
                             `INSERT INTO ai_analysis (application_id, ai_score, skills_matched, skill_gaps, 
-                                                     experience_years, experience_level, education, certifications, reasoning) 
-                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                                                     experience_years, experience_level, education, certifications, reasoning,
+                                                     top_strengths, top_gaps) 
+                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                             [
                               applicationId, 
                               aiScore, 
@@ -366,7 +375,9 @@ CERTIFICATIONS:
                               aiResult.experience_level || 'mid',
                               aiResult.education || 'Bachelor\'s Degree',
                               JSON.stringify(aiResult.certifications || []),
-                              aiResult.reasoning || null
+                              aiResult.reasoning || null,
+                              JSON.stringify(aiResult.topStrengths || []),
+                              JSON.stringify(aiResult.topGaps || [])
                             ],
                             (err) => {
                               if (err) {

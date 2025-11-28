@@ -94,7 +94,7 @@ Be fair and semantic in matching - "Malware Analysis" matches "Ability to perfor
       { role: "system", content: "You are an expert HR analyst specializing in cybersecurity recruitment." },
       { role: "user", content: matchingPrompt }
     ],
-    temperature: 0.2,
+    temperature: 0,
     response_format: { type: "json_object" }
   });
 
@@ -243,10 +243,23 @@ Return VALID JSON with this EXACT structure:
   "topStrengths": [<top 3 strengths>],
   "topGaps": [<top 3 improvement areas>],
   "experienceStatus": "<below_minimum|match|overqualified>",
-  "reasoning": "<brief 1-2 sentence explanation>"
+  "reasoning": "<brief 1-2 sentence explanation>",
+  "calculationDetails": {
+    "skillsCalculation": "<explain how you calculated skillMatchPercent, e.g., 'Found 7 out of 10 required skills in resume = 70%'>",
+    "knowledgeCalculation": "<explain how you calculated knowledgeMatchPercent>",
+    "tasksCalculation": "<explain how you calculated taskMatchPercent>",
+    "certificationsCalculation": "<explain how you calculated certificationMatchPercent>",
+    "educationCalculation": "<explain how you calculated educationMatchPercent>",
+    "matchedTextExamples": {
+      "skills": [<array of text snippets from resume that matched skills, e.g., "Found 'Splunk' in work experience which matches SIEM requirement">],
+      "knowledge": [<array of text snippets that matched knowledge>],
+      "tasks": [<array of text snippets that matched tasks>]
+    }
+  }
 }
 
-Be semantic in matching - "Splunk" matches "SIEM", "incident investigation" matches "Incident Response".`;
+Be semantic in matching - "Splunk" matches "SIEM", "incident investigation" matches "Incident Response".
+IMPORTANT: Provide detailed calculation explanations showing your reasoning for each percentage score.`;
 
     const startTime = Date.now();
     
@@ -256,7 +269,7 @@ Be semantic in matching - "Splunk" matches "SIEM", "incident investigation" matc
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt }
       ],
-      temperature: 0.2,
+      temperature: 0,
       response_format: { type: "json_object" }
     });
 
@@ -272,6 +285,38 @@ Be semantic in matching - "Splunk" matches "SIEM", "incident investigation" matc
     
     const aiResult = JSON.parse(rawAnalysis);
     console.log('✅ Single AI call completed - extracted AND matched data');
+    
+    // Log AI's calculation details
+    if (aiResult.calculationDetails) {
+      console.log('\n🧮 ========== AI CALCULATION BREAKDOWN ==========');
+      console.log('\n📊 SKILLS CALCULATION:');
+      console.log(aiResult.calculationDetails.skillsCalculation);
+      console.log('\n📚 KNOWLEDGE CALCULATION:');
+      console.log(aiResult.calculationDetails.knowledgeCalculation);
+      console.log('\n📝 TASKS CALCULATION:');
+      console.log(aiResult.calculationDetails.tasksCalculation);
+      console.log('\n🎓 CERTIFICATIONS CALCULATION:');
+      console.log(aiResult.calculationDetails.certificationsCalculation);
+      console.log('\n🎓 EDUCATION CALCULATION:');
+      console.log(aiResult.calculationDetails.educationCalculation);
+      
+      if (aiResult.calculationDetails.matchedTextExamples) {
+        console.log('\n📄 MATCHED TEXT EXAMPLES FROM RESUME:');
+        console.log('\nSkills:');
+        aiResult.calculationDetails.matchedTextExamples.skills?.forEach((example, i) => {
+          console.log(`  ${i + 1}. ${example}`);
+        });
+        console.log('\nKnowledge:');
+        aiResult.calculationDetails.matchedTextExamples.knowledge?.forEach((example, i) => {
+          console.log(`  ${i + 1}. ${example}`);
+        });
+        console.log('\nTasks:');
+        aiResult.calculationDetails.matchedTextExamples.tasks?.forEach((example, i) => {
+          console.log(`  ${i + 1}. ${example}`);
+        });
+      }
+      console.log('\n========== END OF CALCULATION BREAKDOWN ==========\n');
+    }
     
     // Calculate weighted final score
     const finalScore = Math.round(
@@ -641,7 +686,7 @@ Example format:
         { role: "system", content: "You are a helpful career advisor. Always return valid JSON arrays." },
         { role: "user", content: prompt }
       ],
-      temperature: 0.7,
+      temperature: 0,
       max_tokens: 500
     });
 

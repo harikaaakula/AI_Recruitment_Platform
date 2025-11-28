@@ -61,6 +61,8 @@
 | education | String | Education background |
 | certifications | JSON | Array of certifications |
 | reasoning | Text | AI reasoning/explanation |
+| top_strengths | JSON | AI-identified top strengths |
+| top_gaps | JSON | AI-identified improvement areas |
 | created_at | DateTime | Analysis timestamp |
 
 ---

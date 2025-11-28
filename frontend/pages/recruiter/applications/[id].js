@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '../../../components/Layout';
 import { useAuth } from '../../../context/AuthContext';
-import { applicationsAPI } from '../../../utils/api';
+import { applicationsAPI, jobsAPI } from '../../../utils/api';
+import ScoringExplanation from '../../../components/ScoringExplanation';
 
 export default function ApplicationDetails() {
   const { isRecruiter } = useAuth();
@@ -10,8 +11,10 @@ export default function ApplicationDetails() {
   const { id } = router.query;
   
   const [application, setApplication] = useState(null);
+  const [jobDetails, setJobDetails] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [showScoringExplanation, setShowScoringExplanation] = useState(false);
 
   useEffect(() => {
     if (id && isRecruiter) {
@@ -28,6 +31,15 @@ export default function ApplicationDetails() {
       console.log('🎓 Certifications:', appResponse.data.certifications);
       console.log('💭 AI Reasoning:', appResponse.data.reasoning);
       setApplication(appResponse.data);
+      
+      // Fetch all jobs to get experienceRange for this application's job
+      const jobsResponse = await jobsAPI.getAll();
+      const jobs = jobsResponse.data;
+      // Find the job by matching title (since role_id might not be in response)
+      const matchingJob = jobs.find(j => j.title === appResponse.data.job_title);
+      if (matchingJob) {
+        setJobDetails(matchingJob);
+      }
     } catch (error) {
       console.error('❌ Error fetching application:', error);
       setError('Failed to load application details');
@@ -36,12 +48,24 @@ export default function ApplicationDetails() {
     }
   };
 
-  // Helper function to determine experience level from job title
-  const determineExperienceLevel = (jobTitle) => {
+  // Helper function to determine experience level from job title and experience range
+  const determineExperienceLevel = (jobTitle, experienceRange) => {
+    // First check title keywords (explicit override)
     const title = jobTitle.toLowerCase();
     if (title.includes('senior') || title.includes('sr.')) return 'senior';
     if (title.includes('lead') || title.includes('principal')) return 'lead';
     if (title.includes('junior') || title.includes('jr.')) return 'entry';
+    
+    // Use experience range average if available
+    if (experienceRange && experienceRange.min !== undefined && experienceRange.max !== undefined) {
+      const avgExp = (experienceRange.min + experienceRange.max) / 2;
+      if (avgExp < 2.5) return 'entry';      // 0-2.4 years → Entry (70% resume, 30% test)
+      if (avgExp < 4.5) return 'mid';        // 2.5-4.4 years → Mid (40% resume, 60% test)
+      if (avgExp < 7) return 'senior';       // 4.5-6.9 years → Senior (30% resume, 70% test)
+      return 'lead';                          // 7+ years → Lead (25% resume, 75% test)
+    }
+    
+    // Fallback to mid if no experience range data
     return 'mid';
   };
 
@@ -202,36 +226,79 @@ export default function ApplicationDetails() {
   aiInsights.experience_years = application.experience_years || 0;
   aiInsights.experience_level = application.experience_level || 'Not specified';
   
-  // Generate recommendations based on actual data
-  aiInsights.recommendations = [];
-  if (aiInsights.skill_gaps.length > 0) {
-    const topGaps = aiInsights.skill_gaps.slice(0, 2).map(g => g.skill);
-    aiInsights.recommendations.push(`Develop expertise in: ${topGaps.join(', ')}`);
+  // Use AI-generated strengths if available, otherwise generate from data
+  if (application.top_strengths) {
+    try {
+      const parsedStrengths = typeof application.top_strengths === 'string' 
+        ? JSON.parse(application.top_strengths) 
+        : application.top_strengths;
+      aiInsights.strengths = Array.isArray(parsedStrengths) && parsedStrengths.length > 0 
+        ? parsedStrengths 
+        : [];
+    } catch (e) {
+      console.error('Error parsing top_strengths:', e);
+      aiInsights.strengths = [];
+    }
+  } else {
+    aiInsights.strengths = [];
   }
-  if (aiInsights.certifications.length === 0) {
-    aiInsights.recommendations.push('Consider obtaining relevant cybersecurity certifications');
-  }
-  if (aiInsights.experience_years < 3) {
-    aiInsights.recommendations.push('Gain more hands-on experience through projects or internships');
-  }
-  if (aiInsights.recommendations.length === 0) {
-    aiInsights.recommendations.push('Continue developing expertise in matched skills');
-    aiInsights.recommendations.push('Stay updated with latest cybersecurity trends');
-  }
-  
-  // Generate strengths based on actual data
-  aiInsights.strengths = [];
-  if (aiInsights.skills_matched.length > 0) {
-    aiInsights.strengths.push(`${aiInsights.skills_matched.length} skills matched with job requirements`);
-  }
-  if (aiInsights.experience_years > 0) {
-    aiInsights.strengths.push(`${aiInsights.experience_years} years of relevant experience`);
-  }
-  if (aiInsights.certifications.length > 0) {
-    aiInsights.strengths.push(`${aiInsights.certifications.length} professional certifications`);
-  }
+
+  // Fallback: Generate strengths from actual data if AI didn't provide them
   if (aiInsights.strengths.length === 0) {
-    aiInsights.strengths.push('Candidate profile under review');
+    if (aiInsights.skills_matched.length > 0) {
+      // Extract skill names properly (handle both string and object formats)
+      const skillNames = aiInsights.skills_matched.slice(0, 2).map(skill => 
+        typeof skill === 'string' ? skill : (skill.skill || 'Unknown')
+      );
+      aiInsights.strengths.push(`Strong match in ${skillNames.join(' and ')}`);
+    }
+    if (aiInsights.experience_years > 0) {
+      aiInsights.strengths.push(`${aiInsights.experience_years} years of relevant experience`);
+    }
+    if (aiInsights.certifications.length > 0) {
+      aiInsights.strengths.push(`Holds ${aiInsights.certifications.length} professional certification${aiInsights.certifications.length > 1 ? 's' : ''}`);
+    }
+    if (aiInsights.strengths.length === 0) {
+      aiInsights.strengths.push('Candidate profile under review');
+    }
+  }
+
+  // Use AI-generated gaps/recommendations if available, otherwise generate from data
+  if (application.top_gaps) {
+    try {
+      const parsedGaps = typeof application.top_gaps === 'string' 
+        ? JSON.parse(application.top_gaps) 
+        : application.top_gaps;
+      aiInsights.recommendations = Array.isArray(parsedGaps) && parsedGaps.length > 0 
+        ? parsedGaps 
+        : [];
+    } catch (e) {
+      console.error('Error parsing top_gaps:', e);
+      aiInsights.recommendations = [];
+    }
+  } else {
+    aiInsights.recommendations = [];
+  }
+
+  // Fallback: Generate recommendations from actual data if AI didn't provide them
+  if (aiInsights.recommendations.length === 0) {
+    if (aiInsights.skill_gaps.length > 0) {
+      // Extract skill names properly (handle both string and object formats)
+      const topGaps = aiInsights.skill_gaps.slice(0, 2).map(g => 
+        typeof g === 'string' ? g : (g.skill || 'Unknown')
+      );
+      aiInsights.recommendations.push(`Develop expertise in: ${topGaps.join(', ')}`);
+    }
+    if (aiInsights.certifications.length === 0) {
+      aiInsights.recommendations.push('Consider obtaining relevant cybersecurity certifications');
+    }
+    if (aiInsights.experience_years < 3) {
+      aiInsights.recommendations.push('Gain more hands-on experience through projects or internships');
+    }
+    if (aiInsights.recommendations.length === 0) {
+      aiInsights.recommendations.push('Continue developing expertise in matched skills');
+      aiInsights.recommendations.push('Stay updated with latest cybersecurity trends');
+    }
   }
 
   return (
@@ -325,11 +392,20 @@ export default function ApplicationDetails() {
                 
                 <div className="pt-2 border-t">
                   <div className="flex justify-between items-center mb-1">
-                    <span className="font-medium">Overall Compatibility</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">Overall Compatibility</span>
+                      <button
+                        onClick={() => setShowScoringExplanation(true)}
+                        className="text-blue-600 hover:text-blue-800 text-sm"
+                        title="How is this calculated?"
+                      >
+                        ℹ️
+                      </button>
+                    </div>
                     <span className="text-xl font-bold text-purple-600">
                       {(() => {
                         if (application.test_score) {
-                          const experienceLevel = determineExperienceLevel(application.job_title);
+                          const experienceLevel = determineExperienceLevel(application.job_title, jobDetails?.experienceRange);
                           const weightedScore = calculateWeightedScore(
                             application.ai_score,
                             application.test_score,
@@ -344,7 +420,7 @@ export default function ApplicationDetails() {
                   {application.test_score && (
                     <div className="text-xs text-gray-500 text-right">
                       {(() => {
-                        const experienceLevel = determineExperienceLevel(application.job_title);
+                        const experienceLevel = determineExperienceLevel(application.job_title, jobDetails?.experienceRange);
                         const weightedScore = calculateWeightedScore(
                           application.ai_score,
                           application.test_score,
@@ -371,15 +447,8 @@ export default function ApplicationDetails() {
                   <div className="space-y-2">
                     {aiInsights.skills_matched && aiInsights.skills_matched.length > 0 ? (
                       aiInsights.skills_matched.map((skill, index) => (
-                        <div key={index} className="flex justify-between items-center p-2 bg-green-50 rounded">
-                          <span className="font-medium">{skill.skill || 'Unknown'}</span>
-                          <span className={`px-2 py-1 rounded text-xs ${
-                            skill.level === 'expert' ? 'bg-green-200 text-green-800' :
-                            skill.level === 'intermediate' ? 'bg-yellow-200 text-yellow-800' :
-                            'bg-gray-200 text-gray-800'
-                          }`}>
-                            {skill.level || 'N/A'}
-                          </span>
+                        <div key={index} className="p-2 bg-green-50 rounded">
+                          <span className="font-medium">{typeof skill === 'string' ? skill : skill.skill || 'Unknown'}</span>
                         </div>
                       ))
                     ) : (
@@ -393,13 +462,8 @@ export default function ApplicationDetails() {
                   <div className="space-y-2">
                     {aiInsights.skill_gaps && aiInsights.skill_gaps.length > 0 ? (
                       aiInsights.skill_gaps.map((gap, index) => (
-                        <div key={index} className="flex justify-between items-center p-2 bg-red-50 rounded">
-                          <span className="font-medium">{gap.skill || 'Unknown'}</span>
-                          <span className={`px-2 py-1 rounded text-xs ${
-                            gap.priority === 'high' ? 'bg-red-200 text-red-800' : 'bg-orange-200 text-orange-800'
-                          }`}>
-                            {gap.priority || 'medium'}
-                          </span>
+                        <div key={index} className="p-2 bg-red-50 rounded">
+                          <span className="font-medium">{typeof gap === 'string' ? gap : gap.skill || 'Unknown'}</span>
                         </div>
                       ))
                     ) : (
@@ -454,7 +518,12 @@ export default function ApplicationDetails() {
             {/* Strengths & Recommendations */}
             <div className="grid md:grid-cols-2 gap-6">
               <div className="bg-white rounded-lg shadow-md p-6">
-                <h3 className="text-lg font-semibold mb-4 text-green-700">Strengths</h3>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-green-700">Strengths</h3>
+                  <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full font-medium">
+                    🤖 AI Analysis
+                  </span>
+                </div>
                 <ul className="space-y-2">
                   {aiInsights.strengths && aiInsights.strengths.length > 0 ? (
                     aiInsights.strengths.map((strength, index) => (
@@ -470,7 +539,12 @@ export default function ApplicationDetails() {
               </div>
               
               <div className="bg-white rounded-lg shadow-md p-6">
-                <h3 className="text-lg font-semibold mb-4 text-orange-700">Recommendations</h3>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-orange-700">Recommendations</h3>
+                  <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full font-medium">
+                    🤖 AI Analysis
+                  </span>
+                </div>
                 <ul className="space-y-2">
                   {aiInsights.recommendations && aiInsights.recommendations.length > 0 ? (
                     aiInsights.recommendations.map((rec, index) => (
@@ -567,150 +641,31 @@ export default function ApplicationDetails() {
               </div>
             )}
 
-            {/* AI Analysis & Reasoning Section */}
-            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg shadow-md p-6 border border-blue-200">
-              <div className="flex items-center gap-2 mb-4">
-                <span className="text-2xl">🤖</span>
-                <h2 className="text-xl font-semibold text-gray-900">AI Analysis & Reasoning</h2>
-              </div>
-
-              {/* AI Score Summary */}
-              <div className="bg-white rounded-lg p-4 mb-4 border border-blue-100">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-gray-700">AI Match Score</span>
-                  <span className={`text-2xl font-bold ${
-                    application.ai_score >= 80 ? 'text-green-600' :
-                    application.ai_score >= 60 ? 'text-blue-600' :
-                    'text-orange-600'
-                  }`}>
-                    {application.ai_score}%
-                  </span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div 
-                    className={`h-2 rounded-full transition-all ${
-                      application.ai_score >= 80 ? 'bg-green-500' :
-                      application.ai_score >= 60 ? 'bg-blue-500' :
-                      'bg-orange-500'
-                    }`}
-                    style={{ width: `${application.ai_score}%` }}
-                  ></div>
-                </div>
-              </div>
-
-              <div className="grid md:grid-cols-2 gap-4">
-                {/* Strengths */}
-                <div className="bg-white rounded-lg p-4 border border-green-200">
-                  <h3 className="font-semibold text-green-700 mb-3 flex items-center">
-                    <span className="mr-2">✅</span> Strengths
-                  </h3>
-                  {aiInsights.skills_matched && aiInsights.skills_matched.length > 0 ? (
-                    <ul className="space-y-2">
-                      {aiInsights.skills_matched.slice(0, 5).map((skill, idx) => (
-                        <li key={idx} className="flex items-start text-sm">
-                          <span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-2 mt-1.5 flex-shrink-0"></span>
-                          <span className="text-gray-700">
-                            Has <strong>{typeof skill === 'string' ? skill : skill.skill}</strong> experience
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-sm text-gray-500">No specific strengths identified</p>
-                  )}
-                  
-                  {application.experience_years > 0 && (
-                    <div className="mt-3 pt-3 border-t border-green-100">
-                      <p className="text-sm text-gray-700">
-                        <strong>{application.experience_years} years</strong> of relevant experience
-                      </p>
-                    </div>
-                  )}
-                  
-                  {aiInsights.certifications && aiInsights.certifications.length > 0 && (
-                    <div className="mt-2">
-                      <p className="text-sm text-gray-700">
-                        Holds <strong>{aiInsights.certifications.length}</strong> relevant certification{aiInsights.certifications.length > 1 ? 's' : ''}
-                      </p>
-                    </div>
-                  )}
+            {/* AI Reasoning Section - Only show if reasoning exists */}
+            {application.reasoning && (
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg shadow-md p-6 border border-blue-200">
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="text-2xl">🤖</span>
+                  <h2 className="text-xl font-semibold text-gray-900">AI Reasoning</h2>
                 </div>
 
-                {/* Areas of Concern */}
-                <div className="bg-white rounded-lg p-4 border border-orange-200">
-                  <h3 className="font-semibold text-orange-700 mb-3 flex items-center">
-                    <span className="mr-2">⚠️</span> Areas of Concern
-                  </h3>
-                  {aiInsights.skill_gaps && aiInsights.skill_gaps.length > 0 ? (
-                    <ul className="space-y-2">
-                      {aiInsights.skill_gaps.slice(0, 5).map((gap, idx) => (
-                        <li key={idx} className="flex items-start text-sm">
-                          <span className="w-1.5 h-1.5 bg-orange-500 rounded-full mr-2 mt-1.5 flex-shrink-0"></span>
-                          <span className="text-gray-700">
-                            Missing or limited <strong>{typeof gap === 'string' ? gap : gap.skill}</strong> experience
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-sm text-gray-500">No significant gaps identified</p>
-                  )}
-                </div>
-              </div>
-
-              {/* Overall Assessment */}
-              <div className="bg-white rounded-lg p-4 mt-4 border border-blue-100">
-                <h3 className="font-semibold text-blue-700 mb-2 flex items-center">
-                  <span className="mr-2">💡</span> Overall Assessment
-                </h3>
-                
-                {/* Show actual AI reasoning if available, otherwise show constructed assessment */}
-                {application.reasoning ? (
+                <div className="bg-white rounded-lg p-4 border border-blue-100">
                   <div className="text-sm text-gray-700 leading-relaxed">
-                    <p className="italic bg-blue-50 p-3 rounded border-l-4 border-blue-400">
+                    <p className="italic bg-blue-50 p-4 rounded border-l-4 border-blue-400">
                       "{application.reasoning}"
                     </p>
-                    <p className="text-xs text-gray-500 mt-2">— AI Analysis</p>
+                    <p className="text-xs text-gray-500 mt-3">— AI-generated assessment based on resume analysis and job requirements</p>
                   </div>
-                ) : (
-                  <p className="text-sm text-gray-700 leading-relaxed">
-                    {application.ai_score >= 80 ? (
-                      <>
-                        <strong>Strong candidate</strong> with excellent alignment to job requirements. 
-                        {aiInsights.skills_matched && aiInsights.skills_matched.length > 0 && (
-                          <> Demonstrates proficiency in {aiInsights.skills_matched.length} key skill{aiInsights.skills_matched.length > 1 ? 's' : ''}.</>
-                        )}
-                        {aiInsights.skill_gaps && aiInsights.skill_gaps.length > 0 && (
-                          <> May benefit from training in {aiInsights.skill_gaps.slice(0, 2).map(g => typeof g === 'string' ? g : g.skill).join(' and ')}.</>
-                        )}
-                        {' '}Recommended for interview.
-                      </>
-                    ) : application.ai_score >= 60 ? (
-                      <>
-                        <strong>Moderate match</strong> with acceptable alignment to job requirements.
-                        {aiInsights.skills_matched && aiInsights.skills_matched.length > 0 && (
-                          <> Shows competency in {aiInsights.skills_matched.length} required skill{aiInsights.skills_matched.length > 1 ? 's' : ''}.</>
-                        )}
-                        {aiInsights.skill_gaps && aiInsights.skill_gaps.length > 0 && (
-                          <> However, lacks experience in {aiInsights.skill_gaps.slice(0, 2).map(g => typeof g === 'string' ? g : g.skill).join(' and ')}.</>
-                        )}
-                        {' '}Consider for interview with focus on gap areas.
-                      </>
-                    ) : (
-                      <>
-                        <strong>Below threshold</strong> for this position.
-                        {aiInsights.skill_gaps && aiInsights.skill_gaps.length > 0 && (
-                          <> Missing critical skills including {aiInsights.skill_gaps.slice(0, 3).map(g => typeof g === 'string' ? g : g.skill).join(', ')}.</>
-                        )}
-                        {' '}May not be the best fit for this role at this time.
-                      </>
-                    )}
-                  </p>
-                )}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
+
+        <ScoringExplanation 
+          show={showScoringExplanation}
+          onClose={() => setShowScoringExplanation(false)}
+        />
       </div>
     </Layout>
   );

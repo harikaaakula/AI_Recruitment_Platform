@@ -35,18 +35,22 @@ export default function Jobs() {
       const matchesSearch = job.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            job.description.toLowerCase().includes(searchTerm.toLowerCase());
       
-      // Experience filter
+      // Experience filter - using average of min/max for consistency with composite score logic
       let matchesExperience = true;
       if (experienceFilter !== 'all') {
         const minExp = job.experienceRange?.min || 0;
         const maxExp = job.experienceRange?.max || 0;
+        const avgExp = (minExp + maxExp) / 2;
         
         if (experienceFilter === 'entry') {
-          matchesExperience = minExp <= 2;
+          // Entry: 0-2.4 years average
+          matchesExperience = avgExp < 2.5;
         } else if (experienceFilter === 'mid') {
-          matchesExperience = minExp >= 2 && maxExp <= 5;
+          // Mid: 2.5-4.4 years average
+          matchesExperience = avgExp >= 2.5 && avgExp < 4.5;
         } else if (experienceFilter === 'senior') {
-          matchesExperience = minExp >= 5;
+          // Senior: 4.5+ years average
+          matchesExperience = avgExp >= 4.5;
         }
       }
       
@@ -136,9 +140,9 @@ export default function Jobs() {
                 className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-blue-500"
               >
                 <option value="all">All Experience Levels</option>
-                <option value="entry">Entry Level (0-2 years)</option>
-                <option value="mid">Mid Level (2-5 years)</option>
-                <option value="senior">Senior Level (5+ years)</option>
+                <option value="entry">Entry Level (0-2.4 years avg)</option>
+                <option value="mid">Mid Level (2.5-4.4 years avg)</option>
+                <option value="senior">Senior Level (4.5+ years avg)</option>
               </select>
             </div>
           </div>

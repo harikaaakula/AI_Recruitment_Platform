@@ -6,6 +6,7 @@ import { useAuth } from '../../../../context/AuthContext';
 import { jobsAPI, applicationsAPI } from '../../../../utils/api';
 import JobCandidateFilters from '../../../../components/JobCandidateFilters';
 import { applyJobFilters, getDefaultJobFilters } from '../../../../utils/filterHelpers';
+import ScoringExplanation from '../../../../components/ScoringExplanation';
 
 export default function JobCandidates() {
   const { isRecruiter } = useAuth();
@@ -19,6 +20,7 @@ export default function JobCandidates() {
   const [expandedCandidate, setExpandedCandidate] = useState(null);
   const [sortBy, setSortBy] = useState('date'); // 'ai_score', 'test_score', 'date'
   const [filters, setFilters] = useState(getDefaultJobFilters());
+  const [showScoringExplanation, setShowScoringExplanation] = useState(false);
 
   useEffect(() => {
     if (jobId && isRecruiter) {
@@ -47,10 +49,53 @@ export default function JobCandidates() {
     return applyJobFilters(candidates, filters);
   }, [candidates, filters]);
 
+  // Helper functions for composite score calculation
+  const determineExperienceLevelForSort = (jobTitle, experienceRange) => {
+    const title = jobTitle.toLowerCase();
+    if (title.includes('senior') || title.includes('sr.')) return 'senior';
+    if (title.includes('lead') || title.includes('principal')) return 'lead';
+    if (title.includes('junior') || title.includes('jr.')) return 'entry';
+    
+    if (experienceRange && experienceRange.min !== undefined && experienceRange.max !== undefined) {
+      const avgExp = (experienceRange.min + experienceRange.max) / 2;
+      if (avgExp < 2.5) return 'entry';
+      if (avgExp < 4.5) return 'mid';
+      if (avgExp < 7) return 'senior';
+      return 'lead';
+    }
+    
+    return 'mid';
+  };
+
+  const calculateCompositeScore = (aiScore, testScore, experienceLevel) => {
+    const weightageConfig = {
+      entry: { resume_weight: 70, test_weight: 30 },
+      mid: { resume_weight: 40, test_weight: 60 },
+      senior: { resume_weight: 30, test_weight: 70 },
+      lead: { resume_weight: 25, test_weight: 75 }
+    };
+    
+    const weights = weightageConfig[experienceLevel] || weightageConfig.mid;
+    const weightedResumeScore = (aiScore * weights.resume_weight) / 100;
+    const weightedTestScore = (testScore * weights.test_weight) / 100;
+    return parseFloat((weightedResumeScore + weightedTestScore).toFixed(1));
+  };
+
   // Sort filtered candidates based on selected option
   const sortedCandidates = useMemo(() => {
     return [...filteredCandidates].sort((a, b) => {
       switch (sortBy) {
+        case 'composite_score':
+          // Calculate composite scores for sorting
+          if (a.test_score && b.test_score) {
+            const expLevelA = determineExperienceLevelForSort(job?.title || '', job?.experienceRange);
+            const expLevelB = determineExperienceLevelForSort(job?.title || '', job?.experienceRange);
+            const compositeA = calculateCompositeScore(a.ai_score || 0, a.test_score || 0, expLevelA);
+            const compositeB = calculateCompositeScore(b.ai_score || 0, b.test_score || 0, expLevelB);
+            return compositeB - compositeA;
+          }
+          // If no test scores, fall back to AI score
+          return (b.ai_score || 0) - (a.ai_score || 0);
         case 'ai_score':
           return (b.ai_score || 0) - (a.ai_score || 0);
         case 'test_score':
@@ -60,7 +105,7 @@ export default function JobCandidates() {
           return new Date(b.created_at) - new Date(a.created_at);
       }
     });
-  }, [filteredCandidates, sortBy]);
+  }, [filteredCandidates, sortBy, job]);
 
   // Calculate statistics - Hiring Readiness Metrics (using filtered candidates)
   const totalCandidates = filteredCandidates.length;
@@ -86,7 +131,8 @@ export default function JobCandidates() {
 
   // Helper functions
   const getStatusColor = (status, testScore) => {
-    const hasTestScore = testScore !== null && testScore !== undefined && testScore !== '' && testScore !== 0;
+    // Check if test score exists (including 0 as a valid score)
+    const hasTestScore = testScore !== null && testScore !== undefined && testScore !== '';
     
     if (status === 'test_completed' && hasTestScore) {
       return 'bg-blue-100 text-blue-800';
@@ -107,7 +153,8 @@ export default function JobCandidates() {
   };
 
   const getStatusText = (status, testScore) => {
-    const hasTestScore = testScore !== null && testScore !== undefined && testScore !== '' && testScore !== 0;
+    // Check if test score exists (including 0 as a valid score)
+    const hasTestScore = testScore !== null && testScore !== undefined && testScore !== '';
     
     if (status === 'test_completed' && hasTestScore) {
       return 'Test Completed';
@@ -190,7 +237,15 @@ export default function JobCandidates() {
         {/* Job Header */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-4">{job?.title}</h1>
+            <div className="flex justify-between items-start mb-4">
+              <h1 className="text-3xl font-bold text-gray-900">{job?.title}</h1>
+              <button
+                onClick={() => setShowScoringExplanation(true)}
+                className="bg-blue-100 text-blue-800 px-4 py-2 rounded-lg hover:bg-blue-200 text-sm whitespace-nowrap"
+              >
+                📊 How Scoring Works
+              </button>
+            </div>
             
             <div className="mb-4">
               <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm">
@@ -473,13 +528,67 @@ export default function JobCandidates() {
             })()}
           </div>
 
-          {/* 3. Top 3 Candidates */}
+          {/* 3. Top 3 Candidates - With Composite Score */}
           <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-xl font-semibold mb-4">🏆 Top 3 Candidates</h2>
+            <div className="mb-4">
+              <h2 className="text-xl font-semibold">🏆 Top 3 Candidates</h2>
+              <p className="text-xs text-gray-500 mt-1">Ranked by composite fit score</p>
+            </div>
             {(() => {
+              // Helper function to determine experience level from job title and experience range
+              const determineExperienceLevel = (jobTitle, experienceRange) => {
+                // First check title keywords (explicit override)
+                const title = jobTitle.toLowerCase();
+                if (title.includes('senior') || title.includes('sr.')) return 'senior';
+                if (title.includes('lead') || title.includes('principal')) return 'lead';
+                if (title.includes('junior') || title.includes('jr.')) return 'entry';
+                
+                // Use experience range average if available
+                if (experienceRange && experienceRange.min !== undefined && experienceRange.max !== undefined) {
+                  const avgExp = (experienceRange.min + experienceRange.max) / 2;
+                  if (avgExp < 2.5) return 'entry';      // 0-2.4 years → Entry (70% resume, 30% test)
+                  if (avgExp < 4.5) return 'mid';        // 2.5-4.4 years → Mid (40% resume, 60% test)
+                  if (avgExp < 7) return 'senior';       // 4.5-6.9 years → Senior (30% resume, 70% test)
+                  return 'lead';                          // 7+ years → Lead (25% resume, 75% test)
+                }
+                
+                // Fallback to mid if no experience range data
+                return 'mid';
+              };
+
+              // Helper function to calculate weighted composite score
+              const calculateWeightedScore = (aiScore, testScore, experienceLevel) => {
+                const weightageConfig = {
+                  entry: { resume_weight: 70, test_weight: 30 },
+                  mid: { resume_weight: 40, test_weight: 60 },
+                  senior: { resume_weight: 30, test_weight: 70 },
+                  lead: { resume_weight: 25, test_weight: 75 }
+                };
+                
+                const weights = weightageConfig[experienceLevel] || weightageConfig.mid;
+                const weightedResumeScore = (aiScore * weights.resume_weight) / 100;
+                const weightedTestScore = (testScore * weights.test_weight) / 100;
+                const compositeFitScore = (weightedResumeScore + weightedTestScore).toFixed(1);
+                
+                return {
+                  composite_fit_score: compositeFitScore,
+                  experience_level: experienceLevel,
+                  weightage: weights
+                };
+              };
+
               const topCandidates = filteredCandidates
                 .filter(c => c.test_score !== null && c.test_score !== undefined && c.test_score > 0)
-                .sort((a, b) => b.test_score - a.test_score)
+                .map(candidate => {
+                  const experienceLevel = determineExperienceLevel(job?.title || '', job?.experienceRange);
+                  const weightedScore = calculateWeightedScore(
+                    candidate.ai_score,
+                    candidate.test_score,
+                    experienceLevel
+                  );
+                  return { ...candidate, weightedScore };
+                })
+                .sort((a, b) => parseFloat(b.weightedScore.composite_fit_score) - parseFloat(a.weightedScore.composite_fit_score))
                 .slice(0, 3);
 
               if (topCandidates.length === 0) {
@@ -493,29 +602,44 @@ export default function JobCandidates() {
               return (
                 <div className="space-y-3">
                   {topCandidates.map((candidate, index) => (
-                    <div key={candidate.id} className="flex items-center gap-3 p-3 border rounded-lg hover:bg-gray-50 transition-colors">
-                      {/* Rank Badge */}
-                      <div className="w-8 h-8 bg-purple-500 text-white rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0">
-                        {index + 1}
+                    <div key={candidate.id} className="p-3 border rounded-lg hover:bg-gray-50 transition-colors">
+                      <div className="flex items-center gap-3 mb-2">
+                        {/* Rank Badge */}
+                        <div className="w-8 h-8 bg-purple-500 text-white rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0">
+                          {index + 1}
+                        </div>
+                        
+                        {/* Candidate Info */}
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-semibold text-gray-900 text-sm truncate">{candidate.candidate_name}</h3>
+                          <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
+                            <span>{candidate.weightedScore.experience_level} level</span>
+                            <span>•</span>
+                            <span>{candidate.weightedScore.weightage.resume_weight}% Resume + {candidate.weightedScore.weightage.test_weight}% Test</span>
+                          </div>
+                        </div>
+                        
+                        {/* Action Button */}
+                        <Link 
+                          href={`/recruiter/applications/${candidate.id}`}
+                          className="bg-purple-600 text-white px-3 py-1 rounded text-xs hover:bg-purple-700 flex-shrink-0"
+                        >
+                          View
+                        </Link>
                       </div>
                       
-                      {/* Candidate Info */}
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-gray-900 text-sm truncate">{candidate.candidate_name}</h3>
-                        <div className="flex items-center gap-2 text-xs text-gray-600">
-                          <span>AI: {candidate.ai_score}%</span>
-                          <span>•</span>
-                          <span className="font-semibold text-green-600">Test: {candidate.test_score}%</span>
+                      {/* Scores Row */}
+                      <div className="flex items-center gap-2 ml-11">
+                        <div className="bg-purple-100 text-purple-700 px-2 py-1 rounded text-xs font-bold">
+                          Composite: {candidate.weightedScore.composite_fit_score}%
+                        </div>
+                        <div className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs">
+                          AI: {candidate.ai_score}%
+                        </div>
+                        <div className="bg-green-100 text-green-700 px-2 py-1 rounded text-xs">
+                          Test: {candidate.test_score}%
                         </div>
                       </div>
-                      
-                      {/* Action Button */}
-                      <Link 
-                        href={`/recruiter/applications/${candidate.id}`}
-                        className="bg-purple-600 text-white px-3 py-1 rounded text-xs hover:bg-purple-700 flex-shrink-0"
-                      >
-                        View
-                      </Link>
                     </div>
                   ))}
                 </div>
@@ -537,6 +661,7 @@ export default function JobCandidates() {
                 className="px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 bg-white"
               >
                 <option value="date">Date Applied (Newest First)</option>
+                <option value="composite_score">Composite Score (Highest First)</option>
                 <option value="ai_score">AI Score (Highest First)</option>
                 <option value="test_score">Test Score (Highest First)</option>
               </select>
@@ -563,6 +688,7 @@ export default function JobCandidates() {
                 <thead>
                   <tr className="border-b">
                     <th className="text-left py-3">Candidate</th>
+                    <th className="text-left py-3">Composite Score</th>
                     <th className="text-left py-3">AI Score</th>
                     <th className="text-left py-3">Test Score</th>
                     <th className="text-left py-3">Status</th>
@@ -584,6 +710,29 @@ export default function JobCandidates() {
                             <p className="text-sm text-gray-600">{candidate.candidate_email}</p>
                           </div>
                         </div>
+                      </td>
+                      <td className="py-4">
+                        {candidate.test_score !== null && candidate.test_score !== undefined && candidate.test_score !== '' ? (
+                          (() => {
+                            const expLevel = determineExperienceLevelForSort(job?.title || '', job?.experienceRange);
+                            const compositeScore = calculateCompositeScore(candidate.ai_score || 0, candidate.test_score || 0, expLevel);
+                            return (
+                              <div className="text-center">
+                                <span className={`px-3 py-2 rounded-lg text-lg font-bold ${
+                                  compositeScore >= 80 ? 'bg-purple-100 text-purple-700' : 
+                                  compositeScore >= 70 ? 'bg-blue-100 text-blue-700' : 
+                                  compositeScore >= 60 ? 'bg-yellow-100 text-yellow-700' : 
+                                  'bg-gray-100 text-gray-700'
+                                }`}>
+                                  {compositeScore}%
+                                </span>
+                                <p className="text-xs text-gray-500 mt-1">{expLevel} level</p>
+                              </div>
+                            );
+                          })()
+                        ) : (
+                          <span className="text-gray-400 text-sm">Test pending</span>
+                        )}
                       </td>
                       <td className="py-4">
                         <div className="flex items-center">
@@ -736,6 +885,10 @@ export default function JobCandidates() {
           )}
         </div>
 
+        <ScoringExplanation 
+          show={showScoringExplanation}
+          onClose={() => setShowScoringExplanation(false)}
+        />
 
       </div>
     </Layout>

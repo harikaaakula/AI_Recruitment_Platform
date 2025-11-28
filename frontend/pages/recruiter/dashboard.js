@@ -31,7 +31,25 @@ export default function RecruiterDashboard() {
         applicationsAPI.getAllForRecruiter(),
       ]);
       
-      setJobs(jobsResponse.data);
+      // Parse requirements to extract experienceRange for each job
+      const jobsWithExperienceRange = jobsResponse.data.map(job => {
+        let experienceRange = null;
+        if (job.requirements) {
+          try {
+            const req = typeof job.requirements === 'string' 
+              ? JSON.parse(job.requirements) 
+              : job.requirements;
+            if (req.experience) {
+              experienceRange = { min: req.experience.min, max: req.experience.max };
+            }
+          } catch (e) {
+            console.warn('Failed to parse requirements for job:', job.title);
+          }
+        }
+        return { ...job, experienceRange };
+      });
+      
+      setJobs(jobsWithExperienceRange);
       setApplications(applicationsResponse.data);
     } catch (error) {
       setError('Failed to load dashboard data');
@@ -108,12 +126,24 @@ export default function RecruiterDashboard() {
     }
   };
 
-  // Helper function to determine experience level from job title
-  const determineExperienceLevel = (jobTitle) => {
+  // Helper function to determine experience level from job title and experience range
+  const determineExperienceLevel = (jobTitle, experienceRange) => {
+    // First check title keywords (explicit override)
     const title = jobTitle.toLowerCase();
     if (title.includes('senior') || title.includes('sr.')) return 'senior';
     if (title.includes('lead') || title.includes('principal')) return 'lead';
     if (title.includes('junior') || title.includes('jr.')) return 'entry';
+    
+    // Use experience range average if available
+    if (experienceRange && experienceRange.min !== undefined && experienceRange.max !== undefined) {
+      const avgExp = (experienceRange.min + experienceRange.max) / 2;
+      if (avgExp < 2.5) return 'entry';      // 0-2.4 years → Entry (70% resume, 30% test)
+      if (avgExp < 4.5) return 'mid';        // 2.5-4.4 years → Mid (40% resume, 60% test)
+      if (avgExp < 7) return 'senior';       // 4.5-6.9 years → Senior (30% resume, 70% test)
+      return 'lead';                          // 7+ years → Lead (25% resume, 75% test)
+    }
+    
+    // Fallback to mid if no experience range data
     return 'mid';
   };
 
@@ -202,8 +232,8 @@ export default function RecruiterDashboard() {
         {/* Content with fade transition */}
         <div className={`transition-opacity duration-300 ${isFiltering ? 'opacity-50' : 'opacity-100'}`}>
 
-        {/* KPI Cards - 5 Cards */}
-        <div className="grid md:grid-cols-5 gap-4 mb-8">
+        {/* KPI Cards - 6 Cards */}
+        <div className="grid md:grid-cols-6 gap-4 mb-8">
           {/* Total Jobs */}
           <div className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow">
             <div className="flex items-center justify-between mb-2">
@@ -214,20 +244,35 @@ export default function RecruiterDashboard() {
             <p className="text-xs text-gray-500 mt-1">Active postings</p>
           </div>
           
-          {/* Total Candidates */}
+          {/* Total Applications */}
           <div className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow">
             <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-semibold text-gray-600">Total Candidates</h3>
-              <span className="text-2xl">👥</span>
+              <h3 className="text-sm font-semibold text-gray-600">Total Applications</h3>
+              <span className="text-2xl">📋</span>
             </div>
             <p className="text-3xl font-bold text-green-600">{totalApplications}</p>
-            <p className="text-xs text-gray-500 mt-1">Total applications</p>
+            <p className="text-xs text-gray-500 mt-1">All submissions</p>
           </div>
           
-          {/* Qualified Candidates */}
+          {/* Unique Candidates */}
           <div className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow">
             <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-semibold text-gray-600">Qualified</h3>
+              <h3 className="text-sm font-semibold text-gray-600">Unique Candidates</h3>
+              <span className="text-2xl">👥</span>
+            </div>
+            <p className="text-3xl font-bold text-cyan-600">
+              {(() => {
+                const uniqueEmails = new Set(filteredApplications.map(app => app.candidate_email));
+                return uniqueEmails.size;
+              })()}
+            </p>
+            <p className="text-xs text-gray-500 mt-1">Distinct applicants</p>
+          </div>
+          
+          {/* Passed Tests */}
+          <div className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-semibold text-gray-600">Passed Tests</h3>
               <span className="text-2xl">⭐</span>
             </div>
             <p className="text-3xl font-bold text-purple-600">{eligibleApplications}</p>
@@ -409,13 +454,19 @@ export default function RecruiterDashboard() {
           </div>
         </div>
 
-        {/* Top 5 Candidates - Simplified */}
+        {/* Top 5 Candidates - With Composite Score */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-8">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold">🌟 Top 5 Candidates</h2>
-            <div className="text-xs text-gray-500">
-              Best performers overall
+            <div>
+              <h2 className="text-xl font-semibold">🌟 Top 5 Candidates</h2>
+              <p className="text-xs text-gray-500 mt-1">Ranked by composite fit score (weighted by experience level)</p>
             </div>
+            <button
+              onClick={() => setShowScoringExplanation(true)}
+              className="text-xs text-blue-600 hover:text-blue-800 underline"
+            >
+              How is this calculated?
+            </button>
           </div>
 
           {filteredApplications.length === 0 ? (
@@ -427,7 +478,9 @@ export default function RecruiterDashboard() {
               {filteredApplications
                 .filter(app => app.status === 'test_completed' && app.test_score)
                 .map((application) => {
-                  const experienceLevel = determineExperienceLevel(application.job_title);
+                  // Find the job to get experienceRange
+                  const job = jobs.find(j => j.id === application.role_id);
+                  const experienceLevel = determineExperienceLevel(application.job_title, job?.experienceRange);
                   const weightedScore = calculateWeightedScore(
                     application.ai_score, 
                     application.test_score || 0, 
@@ -446,14 +499,23 @@ export default function RecruiterDashboard() {
                       <div className="flex-1">
                         <h3 className="font-semibold text-gray-900">{application.candidate_name}</h3>
                         <p className="text-sm text-gray-600">{application.job_title}</p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {application.weightedScore.experience_level} level • {application.weightedScore.weightage.resume_weight}% Resume + {application.weightedScore.weightage.test_weight}% Test
+                        </p>
                       </div>
                       <div className="flex items-center gap-3">
-                        <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                          AI: {application.ai_score}%
-                        </span>
-                        <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
-                          Test: {application.test_score}%
-                        </span>
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-purple-600">{application.weightedScore.composite_fit_score}%</div>
+                          <div className="text-xs text-gray-500">Composite</div>
+                        </div>
+                        <div className="border-l pl-3 space-y-1">
+                          <div className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                            AI: {application.ai_score}%
+                          </div>
+                          <div className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
+                            Test: {application.test_score}%
+                          </div>
+                        </div>
                       </div>
                     </div>
                     <Link
@@ -473,7 +535,7 @@ export default function RecruiterDashboard() {
           )}
         </div>
 
-        {/* Recent Activity - Compact Cards */}
+        {/* Recent Activity - Compact Cards with Composite Score */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-8">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-semibold">📅 Recent Activity</h2>
@@ -504,6 +566,20 @@ export default function RecruiterDashboard() {
                     return `${Math.floor(days / 7)}w ago`;
                   };
 
+                  // Calculate composite score if test is completed
+                  let compositeScore = null;
+                  if (application.test_score) {
+                    // Find the job to get experienceRange
+                    const job = jobs.find(j => j.id === application.role_id);
+                    const experienceLevel = determineExperienceLevel(application.job_title, job?.experienceRange);
+                    const weightedScore = calculateWeightedScore(
+                      application.ai_score,
+                      application.test_score,
+                      experienceLevel
+                    );
+                    compositeScore = weightedScore.composite_fit_score;
+                  }
+
                   return (
                     <div key={application.id} className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-200 hover:shadow-md transition-shadow">
                       <div className="mb-3">
@@ -511,6 +587,14 @@ export default function RecruiterDashboard() {
                         <p className="text-xs text-gray-600 truncate">{application.job_title}</p>
                       </div>
                       <div className="space-y-2 mb-3">
+                        {compositeScore && (
+                          <div className="flex items-center justify-between bg-purple-100 rounded px-2 py-1">
+                            <span className="text-xs font-medium text-purple-700">Composite:</span>
+                            <span className="text-xs font-bold text-purple-700">
+                              {compositeScore}%
+                            </span>
+                          </div>
+                        )}
                         <div className="flex items-center justify-between">
                           <span className="text-xs text-gray-600">AI Score:</span>
                           <span className={`text-xs font-semibold ${
